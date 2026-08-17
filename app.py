@@ -6,6 +6,34 @@ from datetime import date
 
 st.set_page_config(page_title="VIFEX - Lên đơn hàng", page_icon="📦", layout="centered")
 
+st.markdown("""
+<style>
+.vifex-banner {
+    background: #15503F;
+    color: #fff;
+    padding: 18px 22px;
+    border-radius: 12px;
+    margin-bottom: 22px;
+}
+.vifex-banner .brand { font-size: 15px; font-weight: 700; letter-spacing: 1px; opacity: 0.9; }
+.vifex-banner .title { font-size: 22px; font-weight: 700; margin-top: 4px; }
+div.stButton > button, button[kind="formSubmit"] {
+    background-color: #D92B2B !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+}
+div.stButton > button:hover, button[kind="formSubmit"]:hover {
+    background-color: #b62222 !important;
+}
+</style>
+<div class="vifex-banner">
+    <div class="brand">VIFEX</div>
+    <div class="title">📦 Lên đơn hàng</div>
+</div>
+""", unsafe_allow_html=True)
+
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
           "https://www.googleapis.com/auth/drive"]
 
@@ -52,8 +80,6 @@ def lookup_gia(ma_sp, ngay, lich_su_gia_df):
     return int(valid.sort_values("Ngay_bat_dau").iloc[-1]["Gia_ap_dung"])
 
 # ---------- Load dữ liệu danh mục ----------
-st.title("📦 Lên đơn hàng — VIFEX")
-
 try:
     khach_hang_df, _ = read_sheet("Khach_hang")
     san_pham_df, _ = read_sheet("San_pham")
