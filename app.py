@@ -45,31 +45,29 @@ def get_logo_base64():
     return None
 
 # ---------------------------------------------------------------------------
-# CSS RESPONSIVE (MÁY TÍNH RỘNG RÃI - MOBILE DẠNG LƯỚI GRID KHÔNG BỊ DỌC)
+# CSS RESPONSIVE HOÀN CHỈNH (KHÔNG DÙNG F-STRING TRÁNH LỖI CÚ PHÁP)
 # ---------------------------------------------------------------------------
-st.markdown(f"""
+st.markdown("""
 <style>
-/* Ẩn header đè của Streamlit */
-header[data-testid="stHeader"] {{
+/* Ẩn bớt phần header đè của Streamlit */
+header[data-testid="stHeader"] {
     background-color: transparent !important;
     z-index: 1 !important;
-}}
+}
 
-/* =======================================================
-   1. GIAO DIỆN DESKTOP / MÁY TÍNH (MÀN HÌNH RỘNG)
-   ======================================================= */
-.block-container {{
+/* 1. Desktop / Màn hình rộng */
+.block-container {
     max-width: 960px !important;
     padding-top: 4.5rem !important;
     padding-bottom: 4rem !important;
     padding-left: 1.5rem !important;
     padding-right: 1.5rem !important;
     margin: 0 auto !important;
-}}
+}
 
-/* Banner Header chuẩn VIFEX kèm Logo */
-.vifex-banner {{
-    background: {GREEN};
+/* Banner Header */
+.vifex-banner {
+    background: #15503F;
     color: #ffffff;
     padding: 18px 24px;
     border-radius: 16px;
@@ -78,11 +76,11 @@ header[data-testid="stHeader"] {{
     display: flex;
     justify-content: space-between;
     align-items: center;
-}}
-.vifex-banner-left {{
+}
+.vifex-banner-left {
     flex: 1;
-}}
-.vifex-banner .brand-tag {{
+}
+.vifex-banner .brand-tag {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -91,27 +89,26 @@ header[data-testid="stHeader"] {{
     letter-spacing: 1px;
     opacity: 0.9;
     margin-bottom: 4px;
-}}
-.vifex-banner .brand-tag::before {{
+}
+.vifex-banner .brand-tag::before {
     content: "";
     display: inline-block;
     width: 6px;
     height: 14px;
     background: #E53E3E;
     border-radius: 3px;
-}}
-.vifex-banner .sub-title {{
+}
+.vifex-banner .sub-title {
     font-size: 14px;
     opacity: 0.85;
-}}
-.vifex-banner .main-title {{
+}
+.vifex-banner .main-title {
     font-size: 24px;
     font-weight: 700;
     line-height: 1.25;
     margin-top: 2px;
-}}
-/* Khung Logo to hơn theo khung vuông */
-.vifex-banner-logo {{
+}
+.vifex-banner-logo {
     background: #ffffff;
     width: 68px;
     height: 68px;
@@ -123,151 +120,148 @@ header[data-testid="stHeader"] {{
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
     margin-left: 16px;
     flex-shrink: 0;
-}}
-.vifex-banner-logo img {{
+}
+.vifex-banner-logo img {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
-}}
+}
 
 /* Thẻ Đơn hàng */
-.order-card {{
+.order-card {
     background: #ffffff;
     border: 1px solid #edf0ed;
     border-radius: 14px;
     padding: 14px 16px;
     margin-bottom: 10px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.03);
-}}
-.order-card-header {{
+}
+.order-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 4px;
-}}
-.order-code {{
+}
+.order-code {
     font-weight: 700;
     font-size: 15px;
     color: #111827;
-}}
-.order-cust {{
+}
+.order-cust {
     font-size: 13px;
     color: #4b5563;
     margin-bottom: 6px;
-}}
-.order-value {{
+}
+.order-value {
     font-weight: 700;
-    color: {GREEN};
+    color: #15503F;
     font-size: 15px;
-}}
+}
 
 /* Badge trạng thái */
-.badge {{
+.badge {
     display: inline-block;
     padding: 4px 10px;
     border-radius: 8px;
     font-size: 12px;
     font-weight: 600;
-}}
+}
 
 /* Metric Box */
-.metric-box {{
+.metric-box {
     background: #ffffff;
     border: 1px solid #edf0ed;
     border-radius: 14px;
     padding: 14px 16px;
     text-align: left;
     box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-}}
-.metric-label {{
+}
+.metric-label {
     font-size: 12px;
     color: #6b7280;
     font-weight: 500;
-}}
-.metric-value {{
+}
+.metric-value {
     font-size: 20px;
     font-weight: 700;
     margin-top: 4px;
-}}
+}
 
-.product-item-title {{
+.product-item-title {
     font-size: 13px;
     font-weight: 700;
-    color: {GREEN};
+    color: #15503F;
     margin-bottom: 8px;
-}}
+}
 
 /* Thanh điều hướng Tab Desktop */
-div[class*="st-key-vifex_nav"] {{
+div[class*="st-key-vifex_nav"] {
     margin-bottom: 16px;
-}}
-div[class*="st-key-vifex_nav"] button {{
+}
+div[class*="st-key-vifex_nav"] button {
     padding: 10px 4px !important;
     font-size: 13px !important;
     border-radius: 12px !important;
     border: 1px solid #e5e7eb !important;
     background-color: #f9fafb !important;
     color: #374151 !important;
-}}
-div[class*="st-key-vifex_nav"] button[kind="primary"] {{
-    background-color: {GREEN} !important;
+}
+div[class*="st-key-vifex_nav"] button[kind="primary"] {
+    background-color: #15503F !important;
     color: #ffffff !important;
-    border-color: {GREEN} !important;
+    border-color: #15503F !important;
     font-weight: 600 !important;
-}}
+}
 
-div.stButton > button[kind="primary"] {{
+div.stButton > button[kind="primary"] {
     border-radius: 12px !important;
     padding: 12px 20px !important;
     font-weight: 600 !important;
-}}
+}
 
-/* =======================================================
-   2. GIAO DIỆN MOBILE (ÉP DẠNG LƯỚI GRID 3 CỘT KHÔNG BỊ DỌC)
-   ======================================================= */
+/* 2. Mobile (Dạng lưới Grid 3 cột x 2 hàng không bị xếp dọc) */
 @media screen and (max-width: 768px) {
-    .block-container {{
+    .block-container {
         max-width: 100% !important;
         padding-top: 4.8rem !important;
         padding-left: 0.75rem !important;
         padding-right: 0.75rem !important;
-    }}
+    }
 
-    .vifex-banner {{
+    .vifex-banner {
         padding: 14px 16px !important;
         border-radius: 14px !important;
-    }}
-    .vifex-banner .main-title {{
+    }
+    .vifex-banner .main-title {
         font-size: 19px !important;
-    }}
+    }
 
-    .vifex-banner-logo {{
+    .vifex-banner-logo {
         width: 62px !important;
         height: 62px !important;
         border-radius: 12px !important;
         padding: 5px !important;
         margin-left: 10px !important;
-    }}
+    }
 
-    /* ÉP STREAMLIT KHÔNG XẾP DỌC CÁC CỘT TRONG MENU ĐIỀU HƯỚNG */
-    div[class*="st-key-vifex_nav"] [data-testid="stHorizontalBlock"] {{
+    div[class*="st-key-vifex_nav"] [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         gap: 6px !important;
-    }}
-    div[class*="st-key-vifex_nav"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+    }
+    div[class*="st-key-vifex_nav"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
         width: 33.33% !important;
         min-width: 33.33% !important;
         flex: 1 1 33.33% !important;
         padding: 0 !important;
-    }}
-    div[class*="st-key-vifex_nav"] button {{
+    }
+    div[class*="st-key-vifex_nav"] button {
         padding: 8px 2px !important;
         font-size: 11.5px !important;
         height: 42px !important;
         white-space: nowrap !important;
-    }}
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -583,7 +577,7 @@ if "order_items_count" not in st.session_state:
     st.session_state.order_items_count = 1
 
 # ---------------------------------------------------------------------------
-# THANH ĐIỀU HƯỚNG TAB (DẠNG LƯỚI GRID 3 CỘT TRÊN CẢ PC VÀ MOBILE)
+# THANH ĐIỀU HƯỚNG TAB
 # ---------------------------------------------------------------------------
 NAV_OPTIONS = ["Trang chủ", "Đơn hàng", "Lên đơn", "Lương Sale", "Dashboard", "Khách hàng"]
 NAV_ICONS = {"Trang chủ": "🏠", "Đơn hàng": "📦", "Lên đơn": "➕", "Lương Sale": "💰", "Dashboard": "📊", "Khách hàng": "👥"}
@@ -732,17 +726,16 @@ if nav == "🏠 Trang chủ":
 elif nav == "📦 Đơn hàng":
     banner("Danh sách đơn hàng")
 
-    status_filters = ["Tất cả", "Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàng"]
-    filter_status = st.pills("Bộ lọc trạng thái", status_filters, default="Tất cả", label_visibility="collapsed")
+    filter_status = st.selectbox("Lọc theo trạng thái đơn hàng", ["Tất cả"] + ALL_STATUSES)
     
     view_df = don_hang_df.copy()
-    if filter_status and filter_status != "Tất cả":
+    if filter_status != "Tất cả":
         view_df = view_df[view_df["Trang_thai"] == filter_status]
     view_df = view_df.sort_values("Ngay_len_don", ascending=False)
 
     st.write("")
     if view_df.empty:
-        st.info("Không có đơn hàng nào phù hợp với bộ lọc.")
+        st.info("Không có đơn hàng nào phù hợp.")
     for _, r in view_df.iterrows():
         kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
         ten_kh = kh.iloc[0]["Ten_NPP"] if not kh.empty else r["Ma_KH"]
