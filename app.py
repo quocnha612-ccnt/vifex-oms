@@ -548,7 +548,7 @@ elif nav == "📦 Đơn hàng":
 # Lên đơn
 # ---------------------------------------------------------------------------
 elif nav == "➕ Lên đơn":
-        banner("Lên đơn hàng")
+    banner("Lên đơn hàng")
 
     n_dong = st.number_input("Số dòng sản phẩm", min_value=1, max_value=20, value=1, step=1)
 
@@ -563,7 +563,6 @@ elif nav == "➕ Lên đơn":
         ghi_chu_tt = st.text_input("Ghi chú thanh toán", "")
 
         st.markdown("**Danh sách sản phẩm trong đơn**")
-
 
         line_items = []
         ten_sp_list = san_pham_df["Ten_SP"].tolist()
