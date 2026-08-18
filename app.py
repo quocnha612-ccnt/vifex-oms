@@ -16,54 +16,180 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
 GREEN = "#15503F"
 GREEN_BG = "#E2EDE8"
 RED = "#D92B2B"
-RED_BG = "#FBE6E6"
-AMBER = "#8A5A10"
-AMBER_BG = "#FBEEDA"
+RED_BG = "#FDE8E8"
+AMBER = "#D97706"
+AMBER_BG = "#FEF3C7"
+GRAY_BG = "#F3F4F6"
+GRAY_TEXT = "#4B5563"
 
 VALID_STATUSES = ["Đang giao hàng", "Đã nhận hàng"]
 ALL_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàng"]
 
 # ---------------------------------------------------------------------------
-# CSS
+# CSS TỐI ƯU GIAO DIỆN (MOBILE APP FIRST & RESPONSIVE DESKTOP)
 # ---------------------------------------------------------------------------
 st.markdown(f"""
 <style>
+/* 1. Tối ưu khung chứa chính (App Container) */
+.block-container {{
+    max-width: 520px !important;
+    padding-top: 1rem !important;
+    padding-bottom: 5.5rem !important;
+    padding-left: 0.85rem !important;
+    padding-right: 0.85rem !important;
+    margin: 0 auto !important;
+}}
+
+/* 2. Header Banner chuẩn Mobile App */
 .vifex-banner {{
     background: {GREEN};
-    color: #fff;
+    color: #ffffff;
     padding: 16px 20px;
-    border-radius: 12px;
-    margin-bottom: 18px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 12px rgba(21, 80, 63, 0.15);
 }}
-.vifex-banner .brand {{ font-size: 13px; font-weight: 700; letter-spacing: 1px; opacity: 0.85; }}
-.vifex-banner .title {{ font-size: 20px; font-weight: 700; margin-top: 2px; }}
+.vifex-banner .brand-tag {{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    opacity: 0.9;
+    margin-bottom: 4px;
+}}
+.vifex-banner .brand-tag::before {{
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 14px;
+    background: #E53E3E;
+    border-radius: 3px;
+}}
+.vifex-banner .sub-title {{
+    font-size: 13px;
+    opacity: 0.85;
+}}
+.vifex-banner .main-title {{
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-top: 2px;
+}}
 
-.badge {{
-    display: inline-block; padding: 4px 12px; border-radius: 8px;
-    font-size: 13px; font-weight: 600; margin-right: 6px;
-}}
+/* 3. Thẻ Đơn hàng (Order Card) */
 .order-card {{
-    border: 1px solid #e2e0d5; border-radius: 10px; padding: 12px 14px;
-    margin-bottom: 8px; background: #fafaf6;
+    background: #ffffff;
+    border: 1px solid #edf0ed;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.03);
 }}
-.order-code {{ font-weight: 700; font-size: 14px; }}
-.order-cust {{ font-size: 12px; color: #6c6f68; }}
-.order-value {{ font-weight: 700; color: {GREEN}; font-size: 14px; margin-top: 2px; }}
+.order-card-header {{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}}
+.order-code {{
+    font-weight: 700;
+    font-size: 15px;
+    color: #111827;
+}}
+.order-cust {{
+    font-size: 13px;
+    color: #4b5563;
+    margin-bottom: 6px;
+}}
+.order-value {{
+    font-weight: 700;
+    color: {GREEN};
+    font-size: 15px;
+}}
+
+/* Badge trạng thái */
+.badge {{
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}}
+
+/* 4. Metric Boxes & Thống kê */
 .metric-box {{
-    background: #fafaf6; border: 1px solid #e2e0d5; border-radius: 10px;
-    padding: 12px 14px; text-align: left;
+    background: #ffffff;
+    border: 1px solid #edf0ed;
+    border-radius: 14px;
+    padding: 12px 14px;
+    text-align: left;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
 }}
-.metric-label {{ font-size: 12px; color: #6c6f68; }}
-.metric-value {{ font-size: 20px; font-weight: 700; margin-top: 2px; }}
+.metric-label {{
+    font-size: 12px;
+    color: #6b7280;
+    font-weight: 500;
+}}
+.metric-value {{
+    font-size: 20px;
+    font-weight: 700;
+    margin-top: 4px;
+}}
+
+/* 5. Gói sản phẩm con trong Form Lên đơn */
+.product-item-card {{
+    background: #fbfcfb;
+    border: 1px solid #e5e9e6;
+    border-radius: 12px;
+    padding: 12px 14px 6px 14px;
+    margin-bottom: 12px;
+}}
+.product-item-title {{
+    font-size: 13px;
+    font-weight: 700;
+    color: {GREEN};
+    margin-bottom: 8px;
+}}
+
+/* 6. Thanh điều hướng Tab phía trên tối ưu */
+div[class*="st-key-vifex_nav"] {{
+    margin-bottom: 12px;
+}}
+div[class*="st-key-vifex_nav"] button {{
+    padding: 6px 2px !important;
+    font-size: 12px !important;
+    border-radius: 10px !important;
+    border: 1px solid #e5e7eb !important;
+    background-color: #f9fafb !important;
+    color: #374151 !important;
+}}
+div[class*="st-key-vifex_nav"] button[kind="primary"] {{
+    background-color: {GREEN} !important;
+    color: #ffffff !important;
+    border-color: {GREEN} !important;
+    font-weight: 600 !important;
+}}
+
+/* Nút bấm Tạo đơn nổi bật */
+div.stButton > button[kind="primary"] {{
+    border-radius: 12px !important;
+    padding: 12px 20px !important;
+    font-weight: 600 !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
 
-def banner(title):
+def banner(title, subtitle=None, highlight_text=None):
+    sub_html = f'<div class="sub-title">{subtitle}</div>' if subtitle else ""
+    main_title = highlight_text if highlight_text else title
     st.markdown(f"""
     <div class="vifex-banner">
-        <div class="brand">VIFEX</div>
-        <div class="title">{title}</div>
+        <div class="brand-tag">VIFEX</div>
+        {sub_html}
+        <div class="main-title">{main_title}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -75,7 +201,7 @@ def status_badge_html(status):
         "Đang giao hàng": (RED, RED_BG),
         "Đã nhận hàng": (GREEN, GREEN_BG),
     }
-    fg, bg = colors.get(status, ("#555", "#eee"))
+    fg, bg = colors.get(status, (GRAY_TEXT, GRAY_BG))
     return f'<span class="badge" style="background:{bg};color:{fg}">{status}</span>'
 
 
@@ -103,7 +229,6 @@ def get_spreadsheet():
 
 
 def serial_to_date(v):
-    """Chuyển serial ngày của Google Sheets sang date. Trả về None nếu không hợp lệ."""
     if v is None or v == "":
         return None
     try:
@@ -115,7 +240,6 @@ def serial_to_date(v):
 
 
 def read_raw(name):
-    """Đọc 1 sheet với UNFORMATTED_VALUE (dùng cho ghi/tra cứu đơn lẻ, không dùng cho load chính)."""
     ws = get_spreadsheet().worksheet(name)
     records = ws.get_all_records(value_render_option="UNFORMATTED_VALUE")
     if records:
@@ -130,7 +254,6 @@ SHEET_NAMES = ["San_pham", "Khach_hang", "Nhan_vien", "Lich_su_gia", "Don_hang",
 
 
 def read_all_sheets_batch(names):
-    """Đọc nhiều sheet trong 1 lần gọi API duy nhất — nhanh hơn nhiều so với gọi từng sheet."""
     sh = get_spreadsheet()
     ranges = [f"{n}!A:Z" for n in names]
     resp = sh.values_batch_get(ranges, params={"valueRenderOption": "UNFORMATTED_VALUE"})
@@ -169,7 +292,6 @@ def load_data():
     lich_su_gia_df = to_date_col(lich_su_gia_df, "Ngay_ket_thuc")
     don_hang_df = to_date_col(don_hang_df, "Ngay_len_don")
 
-    # ép các cột số về đúng kiểu số (batch_get trả nguyên dạng, không tự ép kiểu như get_all_records)
     for col in ["SL_dat", "Tang", "Don_gia_ap_dung", "Chiet_khau", "Thanh_tien", "San_luong_xuat_kho"]:
         if col in ctdh_df.columns:
             ctdh_df[col] = pd.to_numeric(ctdh_df[col], errors="coerce").fillna(0)
@@ -230,7 +352,6 @@ def update_order_status(ma_don, new_status):
     if row:
         don_hang_ws.update_cell(row, 5, new_status)          # E: Trang_thai
         don_hang_ws.update_cell(row, 8, today)                # H: Ngay_cap_nhat_trang_thai
-    # đồng bộ trạng thái sang Chi_tiet_don_hang để dữ liệu Sheets nhất quán
     ctdh_ws = get_ws("Chi_tiet_don_hang")
     ma_don_col = ctdh_ws.col_values(2)
     for i, v in enumerate(ma_don_col, start=1):
@@ -345,7 +466,6 @@ if khach_hang_df.empty or san_pham_df.empty:
     st.warning("Chưa có dữ liệu Khách hàng hoặc Sản phẩm. Vào Google Sheets nhập trước đã.")
     st.stop()
 
-# ghép Chi_tiet_don_hang với Don_hang để tính toán (không phụ thuộc công thức trong Sheets)
 merged = pd.DataFrame()
 if not ctdh_df.empty and not don_hang_df.empty:
     merged = ctdh_df.merge(
@@ -357,46 +477,33 @@ if "selected_order" not in st.session_state:
     st.session_state.selected_order = None
 if "nav" not in st.session_state:
     st.session_state.nav = "🏠 Trang chủ"
-
-# Khởi tạo số dòng sản phẩm trong session_state
 if "order_items_count" not in st.session_state:
     st.session_state.order_items_count = 1
 
 # ---------------------------------------------------------------------------
-# Điều hướng — dùng container có key thật để CSS áp đúng phạm vi
+# THANH ĐIỀU HƯỚNG TAB
 # ---------------------------------------------------------------------------
-st.markdown(f"""
-<style>
-div[class*="st-key-vifex_nav"] div.stButton > button {{
-    width: 100%;
-    padding: 10px 4px;
-    font-size: 13px;
-    border-radius: 10px !important;
-    border: none !important;
-}}
-div[class*="st-key-vifex_nav"] button[kind="secondary"] {{
-    background-color: #fafaf6 !important;
-    color: #444 !important;
-    border: 1px solid #e2e0d5 !important;
-}}
-div[class*="st-key-vifex_nav"] button[kind="primary"] {{
-    background-color: {GREEN} !important;
-    color: #fff !important;
-}}
-</style>
-""", unsafe_allow_html=True)
+NAV_OPTIONS = ["Trang chủ", "Đơn hàng", "Lên đơn", "Lương Sale", "Dashboard", "Khách hàng"]
+NAV_ICONS = {"Trang chủ": "🏠", "Đơn hàng": "📦", "Lên đơn": "➕", "Lương Sale": "💰", "Dashboard": "📊", "Khách hàng": "👥"}
 
-NAV_OPTIONS = ["🏠 Trang chủ", "📦 Đơn hàng", "➕ Lên đơn", "💰 Lương Sale", "📊 Dashboard", "👥 Khách hàng"]
 with st.container(key="vifex_nav"):
-    nav_cols = st.columns(len(NAV_OPTIONS))
-    for col, opt in zip(nav_cols, NAV_OPTIONS):
-        is_active = st.session_state.nav == opt
-        if col.button(opt, key=f"nav_{opt}", type="primary" if is_active else "secondary",
-                      use_container_width=True):
-            st.session_state.nav = opt
+    row1 = st.columns(3)
+    row2 = st.columns(3)
+    
+    for idx, opt in enumerate(NAV_OPTIONS[:3]):
+        is_active = (st.session_state.nav == f"{NAV_ICONS[opt]} {opt}")
+        if row1[idx].button(f"{NAV_ICONS[opt]} {opt}", key=f"nav_{opt}", type="primary" if is_active else "secondary", use_container_width=True):
+            st.session_state.nav = f"{NAV_ICONS[opt]} {opt}"
             st.rerun()
+
+    for idx, opt in enumerate(NAV_OPTIONS[3:]):
+        is_active = (st.session_state.nav == f"{NAV_ICONS[opt]} {opt}")
+        if row2[idx].button(f"{NAV_ICONS[opt]} {opt}", key=f"nav_{opt}", type="primary" if is_active else "secondary", use_container_width=True):
+            st.session_state.nav = f"{NAV_ICONS[opt]} {opt}"
+            st.rerun()
+
 nav = st.session_state.nav
-st.divider()
+st.write("")
 
 
 def order_total(ma_don):
@@ -417,83 +524,99 @@ def render_order_detail(ma_don):
     items = ctdh_df[ctdh_df["Ma_don"] == ma_don].copy()
     items = items.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
 
-    st.markdown(f"### Chi tiết đơn {ma_don}")
-    st.markdown(status_badge_html(order_row["Trang_thai"]), unsafe_allow_html=True)
-    st.write(f"**Khách hàng:** {kh_row.get('Ten_NPP', '')}")
-    st.write(f"**Ngày lên đơn:** {order_row['Ngay_len_don']}")
-    st.write(f"**Hình thức thanh toán:** {order_row['Hinh_thuc_thanh_toan']}")
-    if order_row.get("Ghi_chu_thanh_toan"):
-        st.write(f"**Ghi chú thanh toán:** {order_row['Ghi_chu_thanh_toan']}")
+    with st.container(border=True):
+        st.markdown(f"#### Chi tiết đơn: `{ma_don}`")
+        st.markdown(status_badge_html(order_row["Trang_thai"]), unsafe_allow_html=True)
+        st.write(f"**Khách hàng:** {kh_row.get('Ten_NPP', '')}")
+        st.write(f"**Ngày lên đơn:** {order_row['Ngay_len_don']}")
+        st.write(f"**Hình thức thanh toán:** {order_row['Hinh_thuc_thanh_toan']}")
+        if order_row.get("Ghi_chu_thanh_toan"):
+            st.write(f"**Ghi chú:** {order_row['Ghi_chu_thanh_toan']}")
 
-    show_cols = items[["Ten_SP", "SL_dat", "Tang", "Don_gia_ap_dung", "Chiet_khau", "Thanh_tien"]].copy()
-    show_cols["Don_gia_ap_dung"] = show_cols["Don_gia_ap_dung"].apply(money)
-    show_cols["Chiet_khau"] = show_cols["Chiet_khau"].apply(money)
-    show_cols["Thanh_tien"] = show_cols["Thanh_tien"].apply(money)
-    show_cols.columns = ["Sản phẩm", "SL đặt", "Tặng", "Đơn giá", "Chiết khấu", "Thành tiền"]
-    st.dataframe(show_cols, hide_index=True, use_container_width=True)
+        st.markdown("---")
+        show_cols = items[["Ten_SP", "SL_dat", "Tang", "Don_gia_ap_dung", "Chiet_khau", "Thanh_tien"]].copy()
+        show_cols["Don_gia_ap_dung"] = show_cols["Don_gia_ap_dung"].apply(money)
+        show_cols["Chiet_khau"] = show_cols["Chiet_khau"].apply(money)
+        show_cols["Thanh_tien"] = show_cols["Thanh_tien"].apply(money)
+        show_cols.columns = ["Sản phẩm", "SL đặt", "Tặng", "Đơn giá", "Chiết khấu", "Thành tiền"]
+        st.dataframe(show_cols, hide_index=True, use_container_width=True)
 
-    total = items["Thanh_tien"].sum()
-    st.markdown(f"**Tổng cộng: {money(total)}**")
+        total = items["Thanh_tien"].sum()
+        st.markdown(f"<div style='font-size:16px;font-weight:700;color:{GREEN};text-align:right;'>Tổng cộng: {money(total)}</div>", unsafe_allow_html=True)
+        st.markdown("---")
 
-    c1, c2 = st.columns(2)
-    with c1:
         new_status = st.selectbox("Cập nhật trạng thái", ALL_STATUSES,
                                    index=ALL_STATUSES.index(order_row["Trang_thai"])
                                    if order_row["Trang_thai"] in ALL_STATUSES else 0,
                                    key=f"status_{ma_don}")
-        if st.button("Lưu trạng thái", key=f"save_status_{ma_don}", type="primary"):
-            update_order_status(ma_don, new_status)
-            st.success("Đã cập nhật trạng thái.")
-            st.rerun()
-    with c2:
-        png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
-        st.download_button("📥 Tải phiếu xuất đơn hàng", data=png_bytes,
-                            file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
-                            key=f"dl_{ma_don}", type="primary")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("💾 Lưu trạng thái", key=f"save_status_{ma_don}", type="primary", use_container_width=True):
+                update_order_status(ma_don, new_status)
+                st.success("Đã cập nhật trạng thái.")
+                st.rerun()
+        with c2:
+            png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
+            st.download_button("📥 Phiếu xuất (PNG)", data=png_bytes,
+                                file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
+                                key=f"dl_{ma_don}", use_container_width=True)
 
-    if st.button("← Đóng chi tiết", key=f"close_{ma_don}"):
-        st.session_state.selected_order = None
-        st.rerun()
+        if st.button("← Đóng xem chi tiết", key=f"close_{ma_don}", use_container_width=True):
+            st.session_state.selected_order = None
+            st.rerun()
 
 
 # ---------------------------------------------------------------------------
-# Trang chủ
+# 1. TRANG CHỦ (THEO MẪU MOBILE GIAO DIỆN MẪU 1)
 # ---------------------------------------------------------------------------
 if nav == "🏠 Trang chủ":
-    banner("Trang chủ")
+    pending = don_hang_df[don_hang_df["Trang_thai"].isin(["Gửi kho", "Đang giao hàng"])] if not don_hang_df.empty else pd.DataFrame()
+    so_don_pending = len(pending)
+    
+    banner("Trang chủ", subtitle="Xin chào, Coco", highlight_text=f"{so_don_pending} đơn cần xử lý")
 
     if don_hang_df.empty:
         st.info("Chưa có đơn hàng nào.")
     else:
         counts = don_hang_df["Trang_thai"].value_counts()
         c1, c2 = st.columns(2)
-        c1.markdown(f"""<div class="metric-box"><div class="metric-label">Gửi kho</div>
-            <div class="metric-value" style="color:{AMBER}">{int(counts.get('Gửi kho', 0))}</div></div>""",
-            unsafe_allow_html=True)
-        c2.markdown(f"""<div class="metric-box"><div class="metric-label">Đang giao</div>
-            <div class="metric-value" style="color:{RED}">{int(counts.get('Đang giao hàng', 0))}</div></div>""",
-            unsafe_allow_html=True)
+        c1.markdown(f"""
+        <div class="metric-box" style="background:{AMBER_BG};border-color:#FDE68A;">
+            <div class="metric-value" style="color:{AMBER};margin-top:0;">{int(counts.get('Gửi kho', 0))}</div>
+            <div class="metric-label" style="color:#92400E;font-weight:600;">Gửi kho</div>
+        </div>""", unsafe_allow_html=True)
+        c2.markdown(f"""
+        <div class="metric-box" style="background:{RED_BG};border-color:#FECACA;">
+            <div class="metric-value" style="color:{RED};margin-top:0;">{int(counts.get('Đang giao hàng', 0))}</div>
+            <div class="metric-label" style="color:#991B1B;font-weight:600;">Đang giao</div>
+        </div>""", unsafe_allow_html=True)
 
-        st.markdown("#### Đơn cần xử lý")
-        pending = don_hang_df[don_hang_df["Trang_thai"].isin(["Gửi kho", "Đang giao hàng"])]
-        pending = pending.sort_values("Ngay_len_don", ascending=False).head(5)
-        if pending.empty:
-            st.caption("Không có đơn nào đang chờ xử lý.")
-        for _, r in pending.iterrows():
+        st.write("")
+        st.markdown("<div style='font-size:14px;font-weight:700;color:#374151;margin-bottom:8px;'>ĐƠN CẦN XỬ LÝ</div>", unsafe_allow_html=True)
+        
+        pending_view = pending.sort_values("Ngay_len_don", ascending=False).head(6)
+        if pending_view.empty:
+            st.caption("Hiện không có đơn nào cần xử lý.")
+        
+        for _, r in pending_view.iterrows():
             kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
             ten_kh = kh.iloc[0]["Ten_NPP"] if not kh.empty else r["Ma_KH"]
             st.markdown(f"""
             <div class="order-card">
-                <div class="order-code">{r['Ma_don']}</div>
-                <div class="order-cust">{ten_kh}</div>
+                <div class="order-card-header">
+                    <span class="order-code">{r['Ma_don']}</span>
+                    {status_badge_html(r['Trang_thai'])}
+                </div>
+                <div class="order-cust">NPP {ten_kh}</div>
                 <div class="order-value">{money(order_total(r['Ma_don']))}</div>
-                {status_badge_html(r['Trang_thai'])}
             </div>""", unsafe_allow_html=True)
-            if st.button("Xem chi tiết", key=f"home_view_{r['Ma_don']}"):
+            if st.button("Xem chi tiết", key=f"home_view_{r['Ma_don']}", use_container_width=True):
                 st.session_state.selected_order = r["Ma_don"]
                 st.rerun()
 
-    if st.button("+ Tạo đơn mới", key="home_new_order", type="primary"):
+    st.write("")
+    if st.button("+ Tạo đơn mới", key="home_new_order", type="primary", use_container_width=True):
         st.session_state.nav = "➕ Lên đơn"
         st.rerun()
 
@@ -502,32 +625,35 @@ if nav == "🏠 Trang chủ":
         render_order_detail(st.session_state.selected_order)
 
 # ---------------------------------------------------------------------------
-# Đơn hàng
+# 2. DANH SÁCH ĐƠN HÀNG (THEO MẪU MOBILE GIAO DIỆN MẪU 2)
 # ---------------------------------------------------------------------------
 elif nav == "📦 Đơn hàng":
     banner("Danh sách đơn hàng")
 
-    filter_status = st.selectbox("Lọc theo trạng thái", ["Tất cả"] + ALL_STATUSES)
+    status_filters = ["Tất cả", "Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàng"]
+    filter_status = st.pills("Bộ lọc trạng thái", status_filters, default="Tất cả", label_visibility="collapsed")
+    
     view_df = don_hang_df.copy()
-    if filter_status != "Tất cả":
+    if filter_status and filter_status != "Tất cả":
         view_df = view_df[view_df["Trang_thai"] == filter_status]
     view_df = view_df.sort_values("Ngay_len_don", ascending=False)
 
+    st.write("")
     if view_df.empty:
-        st.info("Không có đơn hàng nào phù hợp.")
+        st.info("Không có đơn hàng nào phù hợp với bộ lọc.")
     for _, r in view_df.iterrows():
         kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
         ten_kh = kh.iloc[0]["Ten_NPP"] if not kh.empty else r["Ma_KH"]
         st.markdown(f"""
         <div class="order-card">
-            <div style="display:flex;justify-content:space-between">
-                <div class="order-code">{r['Ma_don']}</div>
+            <div class="order-card-header">
+                <span class="order-code">{r['Ma_don']}</span>
                 {status_badge_html(r['Trang_thai'])}
             </div>
-            <div class="order-cust">{ten_kh}</div>
+            <div class="order-cust">NPP {ten_kh}</div>
             <div class="order-value">{money(order_total(r['Ma_don']))}</div>
         </div>""", unsafe_allow_html=True)
-        if st.button("Xem chi tiết", key=f"list_view_{r['Ma_don']}"):
+        if st.button("Xem chi tiết", key=f"list_view_{r['Ma_don']}", use_container_width=True):
             st.session_state.selected_order = r["Ma_don"]
             st.rerun()
 
@@ -536,7 +662,7 @@ elif nav == "📦 Đơn hàng":
         render_order_detail(st.session_state.selected_order)
 
 # ---------------------------------------------------------------------------
-# Lên đơn
+# 3. LÊN ĐƠN HÀNG (TỐI ƯU GIAO DIỆN CARD CHO MOBILE)
 # ---------------------------------------------------------------------------
 elif nav == "➕ Lên đơn":
     banner("Lên đơn hàng")
@@ -549,30 +675,37 @@ elif nav == "➕ Lên đơn":
 
     st.caption(f"Sale phụ trách: **{sale_pt}**")
 
-    # Sử dụng container có viền để giữ trọn vẹn phong cách thiết kế
     with st.container(border=True):
-        ngay_len_don = st.date_input("Ngày lên đơn", value=date.today())
-        hinh_thuc_tt = st.selectbox("Hình thức thanh toán", ["Tiền mặt", "Chuyển khoản", "Công nợ", "Khác"])
+        c_d1, c_d2 = st.columns(2)
+        with c_d1:
+            ngay_len_don = st.date_input("Ngày lên đơn", value=date.today())
+        with c_d2:
+            hinh_thuc_tt = st.selectbox("Hình thức TT", ["Tiền mặt", "Chuyển khoản", "Công nợ", "Khác"])
+        
         ghi_chu_tt = st.text_input("Ghi chú thanh toán", "")
 
-        st.markdown("**Danh sách sản phẩm trong đơn**")
+        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:12px 0 8px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
 
         line_items = []
         ten_sp_list = san_pham_df["Ten_SP"].dropna().tolist()
+        
         for i in range(st.session_state.order_items_count):
-            c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
+            st.markdown(f"""<div class="product-item-title">Sản phẩm #{i+1}</div>""", unsafe_allow_html=True)
+            
+            ten_sp = st.selectbox(f"Chọn SP #{i+1}", ten_sp_list, key=f"sp_{i}", label_visibility="collapsed")
+            
+            c1, c2, c3 = st.columns(3)
             with c1:
-                ten_sp = st.selectbox(f"Sản phẩm #{i+1}", ten_sp_list, key=f"sp_{i}")
-            with c2:
                 sl_dat = st.number_input("SL đặt", min_value=0, value=0, key=f"sl_{i}")
-            with c3:
+            with c2:
                 tang = st.number_input("Tặng", min_value=0.0, value=0.0, step=0.1, key=f"tang_{i}")
-            with c4:
-                chiet_khau = st.number_input("Chiết khấu (đ)", min_value=0, value=0, step=10000, key=f"ck_{i}")
+            with c3:
+                chiet_khau = st.number_input("CK (đ)", min_value=0, value=0, step=10000, key=f"ck_{i}")
+            
+            st.markdown("<div style='height:1px;background:#edf0ed;margin:10px 0;'></div>", unsafe_allow_html=True)
             line_items.append((ten_sp, sl_dat, tang, chiet_khau))
 
-        # Nút Thêm / Bớt sản phẩm đặt ngay phía dưới danh sách sản phẩm
-        col_add, col_remove, _ = st.columns([2, 2, 4])
+        col_add, col_remove = st.columns(2)
         with col_add:
             if st.button("➕ Thêm sản phẩm", key="btn_add_product", use_container_width=True):
                 st.session_state.order_items_count += 1
@@ -583,7 +716,7 @@ elif nav == "➕ Lên đơn":
                     st.session_state.order_items_count -= 1
                     st.rerun()
 
-        st.write("")  # Khoảng cách nhỏ
+        st.write("")
         submitted = st.button("✅ Tạo đơn hàng", use_container_width=True, type="primary")
 
     if submitted:
@@ -614,14 +747,13 @@ elif nav == "➕ Lên đơn":
                 thanh_tien, sl_dat + tang, "Lên đơn", ngay_len_don.month, ngay_len_don.year
             ], value_input_option="USER_ENTERED")
 
-        # Đặt lại số dòng sản phẩm về 1 sau khi tạo đơn thành công
         st.session_state.order_items_count = 1
         refresh()
         st.success(f"Đã tạo đơn **{ma_don}** — tổng giá trị: {money(tong_tien)}")
         st.balloons()
 
 # ---------------------------------------------------------------------------
-# Doanh số & Lương Sale
+# 4. LƯƠNG SALE
 # ---------------------------------------------------------------------------
 elif nav == "💰 Lương Sale":
     banner("Doanh số & Lương Sale")
@@ -631,10 +763,12 @@ elif nav == "💰 Lương Sale":
     elif merged.empty:
         st.info("Chưa có dữ liệu đơn hàng để tính doanh số.")
     else:
-        c1, c2, c3 = st.columns(3)
-        ten_nv = c1.selectbox("Chọn Sale", nhan_vien_df["Ten_NV"].tolist())
-        thang = c2.selectbox("Tháng", list(range(1, 13)), index=(date.today().month - 1), key="sale_thang")
-        nam = c3.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1, key="sale_nam")
+        ten_nv = st.selectbox("Chọn nhân viên Sale", nhan_vien_df["Ten_NV"].tolist())
+        c_m, c_y = st.columns(2)
+        with c_m:
+            thang = st.selectbox("Tháng", list(range(1, 13)), index=(date.today().month - 1), key="sale_thang")
+        with c_y:
+            nam = st.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1, key="sale_nam")
 
         nv_row = nhan_vien_df[nhan_vien_df["Ten_NV"] == ten_nv].iloc[0]
         ma_nv = nv_row["Ma_NV"]
@@ -650,20 +784,23 @@ elif nav == "💰 Lương Sale":
         doanh_thu_sau_vat = doanh_thu * (1 - 0.08)
         luong = doanh_thu_sau_vat * ty_le_hh
 
-        st.caption("Chỉ tính đơn ở trạng thái Đang giao hàng / Đã nhận hàng — đơn Lên đơn hoặc Gửi kho chưa được tính.")
+        st.caption("Chỉ tính đơn ở trạng thái Đang giao hàng / Đã nhận hàng.")
 
         c1, c2 = st.columns(2)
         c1.markdown(f"""<div class="metric-box"><div class="metric-label">Doanh thu hợp lệ</div>
             <div class="metric-value" style="color:{GREEN}">{money(doanh_thu)}</div></div>""", unsafe_allow_html=True)
-        c2.markdown(f"""<div class="metric-box"><div class="metric-label">Sau khi trừ VAT 8%</div>
+        c2.markdown(f"""<div class="metric-box"><div class="metric-label">Sau trừ VAT 8%</div>
             <div class="metric-value">{money(doanh_thu_sau_vat)}</div></div>""", unsafe_allow_html=True)
+        
+        st.write("")
         c3, c4 = st.columns(2)
         c3.markdown(f"""<div class="metric-box"><div class="metric-label">Tỷ lệ hoa hồng</div>
             <div class="metric-value">{ty_le_hh*100:.1f}%</div></div>""", unsafe_allow_html=True)
-        c4.markdown(f"""<div class="metric-box"><div class="metric-label">Lương tháng {thang}/{nam}</div>
+        c4.markdown(f"""<div class="metric-box"><div class="metric-label">Lương thực nhận</div>
             <div class="metric-value" style="color:{RED}">{money(luong)}</div></div>""", unsafe_allow_html=True)
 
-        st.markdown(f"#### Chi tiết hàng hóa {ten_nv} đã bán trong tháng {thang}/{nam}")
+        st.write("")
+        st.markdown(f"#### Chi tiết hàng bán tháng {thang}/{nam}")
         if of_sale.empty:
             st.caption("Chưa có đơn hợp lệ nào trong tháng này.")
         else:
@@ -677,7 +814,7 @@ elif nav == "💰 Lương Sale":
             st.dataframe(by_sp, hide_index=True, use_container_width=True)
 
 # ---------------------------------------------------------------------------
-# Dashboard
+# 5. DASHBOARD TỔNG QUAN (THEO MẪU MOBILE GIAO DIỆN MẪU 3)
 # ---------------------------------------------------------------------------
 elif nav == "📊 Dashboard":
     banner("Tổng quan")
@@ -686,9 +823,10 @@ elif nav == "📊 Dashboard":
         st.info("Chưa có dữ liệu đơn hàng để thống kê.")
     else:
         col1, col2 = st.columns(2)
-        thang = col1.selectbox("Tháng", list(range(1, 13)),
-                                index=(date.today().month - 1))
-        nam = col2.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1)
+        with col1:
+            thang = st.selectbox("Tháng", list(range(1, 13)), index=(date.today().month - 1))
+        with col2:
+            nam = st.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1)
 
         valid = merged[merged["Trang_thai"].isin(VALID_STATUSES)].copy()
         valid["Ngay_len_don"] = pd.to_datetime(valid["Ngay_len_don"], errors="coerce")
@@ -697,26 +835,41 @@ elif nav == "📊 Dashboard":
         doanh_thu = period["Thanh_tien"].sum()
         san_luong = period["San_luong_xuat_kho"].sum()
         so_don = period["Ma_don"].nunique()
-        cong_no = don_hang_df[don_hang_df["Trang_thai"] != "Đã nhận hàng"].shape[0]
+        cong_no_count = don_hang_df[don_hang_df["Trang_thai"] != "Đã nhận hàng"].shape[0]
 
         c1, c2 = st.columns(2)
-        c1.markdown(f"""<div class="metric-box"><div class="metric-label">Doanh thu</div>
-            <div class="metric-value" style="color:{GREEN}">{money(doanh_thu)}</div></div>""", unsafe_allow_html=True)
-        c2.markdown(f"""<div class="metric-box"><div class="metric-label">Số đơn hợp lệ</div>
-            <div class="metric-value">{so_don}</div></div>""", unsafe_allow_html=True)
-        c3, c4 = st.columns(2)
-        c3.markdown(f"""<div class="metric-box"><div class="metric-label">Sản lượng xuất kho</div>
-            <div class="metric-value">{int(san_luong)}</div></div>""", unsafe_allow_html=True)
-        c4.markdown(f"""<div class="metric-box"><div class="metric-label">Đơn chưa hoàn tất</div>
-            <div class="metric-value" style="color:{RED}">{cong_no}</div></div>""", unsafe_allow_html=True)
+        c1.markdown(f"""
+        <div class="metric-box">
+            <div class="metric-label">Doanh thu</div>
+            <div class="metric-value" style="color:{GREEN}">{money(doanh_thu)}</div>
+        </div>""", unsafe_allow_html=True)
+        c2.markdown(f"""
+        <div class="metric-box">
+            <div class="metric-label">Đơn hàng hợp lệ</div>
+            <div class="metric-value">{so_don}</div>
+        </div>""", unsafe_allow_html=True)
 
-        st.markdown("#### Doanh thu 6 tháng gần nhất (đơn hợp lệ)")
+        st.write("")
+        c3, c4 = st.columns(2)
+        c3.markdown(f"""
+        <div class="metric-box">
+            <div class="metric-label">Đang giao</div>
+            <div class="metric-value">{int(don_hang_df[don_hang_df['Trang_thai'] == 'Đang giao hàng'].shape[0])}</div>
+        </div>""", unsafe_allow_html=True)
+        c4.markdown(f"""
+        <div class="metric-box">
+            <div class="metric-label">Đơn chưa nhận</div>
+            <div class="metric-value" style="color:{RED}">{cong_no_count}</div>
+        </div>""", unsafe_allow_html=True)
+
+        st.write("")
+        st.markdown("<div style='font-size:14px;font-weight:700;color:#374151;margin-bottom:8px;'>DOANH THU 6 THÁNG GẦN NHẤT</div>", unsafe_allow_html=True)
         valid["ym"] = valid["Ngay_len_don"].dt.to_period("M")
         trend = valid.groupby("ym")["Thanh_tien"].sum().sort_index().tail(6)
         trend.index = trend.index.astype(str)
         st.bar_chart(trend)
 
-        st.markdown("#### Doanh thu & sản lượng theo mặt hàng (tháng đã chọn)")
+        st.markdown("<div style='font-size:14px;font-weight:700;color:#374151;margin-bottom:8px;'>SẢN LƯỢNG & DOANH THU THEO MẶT HÀNG</div>", unsafe_allow_html=True)
         by_sp = period.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
         by_sp = by_sp.groupby("Ten_SP").agg(
             San_luong=("San_luong_xuat_kho", "sum"),
@@ -727,10 +880,10 @@ elif nav == "📊 Dashboard":
         st.dataframe(by_sp, hide_index=True, use_container_width=True)
 
 # ---------------------------------------------------------------------------
-# Khách hàng
+# 6. KHÁCH HÀNG
 # ---------------------------------------------------------------------------
 elif nav == "👥 Khách hàng":
     banner("Danh sách khách hàng")
-    show = khach_hang_df[["Ma_KH", "Ten_NPP", "Sale_phu_trach", "Khu_vuc", "Trang_thai"]].copy()
+    show = khach_hang_df[["Ma_KH", "Ten_NPP", "Sale_phu_trach", "Khu_vuc", "Trang_thai"]].dropna(subset=["Ten_NPP"]).copy()
     show.columns = ["Mã KH", "Tên NPP", "Sale phụ trách", "Khu vực", "Trạng thái"]
     st.dataframe(show, hide_index=True, use_container_width=True)
