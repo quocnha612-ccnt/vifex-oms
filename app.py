@@ -45,34 +45,36 @@ def get_logo_base64():
     return None
 
 # ---------------------------------------------------------------------------
-# CSS TỐI ƯU GIAO DIỆN (FIX TRIỆT ĐỂ BỊ KHUẤT HEADER BỞI THANH MENU STREAMLIT)
+# CSS RESPONSIVE (MÁY TÍNH RỘNG RÃI - MOBILE DẠNG LƯỚI GRID KHÔNG BỊ DỌC)
 # ---------------------------------------------------------------------------
 st.markdown(f"""
 <style>
-/* Ẩn bớt phần header nền của Streamlit và set padding an toàn */
+/* Ẩn header đè của Streamlit */
 header[data-testid="stHeader"] {{
     background-color: transparent !important;
     z-index: 1 !important;
 }}
 
-/* 1. Tối ưu khung chứa chính (App Container) */
+/* =======================================================
+   1. GIAO DIỆN DESKTOP / MÁY TÍNH (MÀN HÌNH RỘNG)
+   ======================================================= */
 .block-container {{
-    max-width: 540px !important;
-    padding-top: 5.5rem !important;
+    max-width: 960px !important;
+    padding-top: 4.5rem !important;
     padding-bottom: 4rem !important;
-    padding-left: 1rem !important;
-    padding-right: 1rem !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
     margin: 0 auto !important;
 }}
 
-/* 2. Header Banner chuẩn VIFEX kèm Logo */
+/* Banner Header chuẩn VIFEX kèm Logo */
 .vifex-banner {{
     background: {GREEN};
     color: #ffffff;
-    padding: 16px 18px;
+    padding: 18px 24px;
     border-radius: 16px;
-    margin-bottom: 16px;
-    box-shadow: 0 4px 12px rgba(21, 80, 63, 0.15);
+    margin-bottom: 18px;
+    box-shadow: 0 4px 14px rgba(21, 80, 63, 0.15);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -84,7 +86,7 @@ header[data-testid="stHeader"] {{
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 1px;
     opacity: 0.9;
@@ -99,26 +101,27 @@ header[data-testid="stHeader"] {{
     border-radius: 3px;
 }}
 .vifex-banner .sub-title {{
-    font-size: 13px;
+    font-size: 14px;
     opacity: 0.85;
 }}
 .vifex-banner .main-title {{
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 700;
     line-height: 1.25;
     margin-top: 2px;
 }}
+/* Khung Logo to hơn theo khung vuông */
 .vifex-banner-logo {{
     background: #ffffff;
-    width: 52px;
-    height: 52px;
-    border-radius: 12px;
-    padding: 4px;
+    width: 68px;
+    height: 68px;
+    border-radius: 14px;
+    padding: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-    margin-left: 14px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    margin-left: 16px;
     flex-shrink: 0;
 }}
 .vifex-banner-logo img {{
@@ -127,7 +130,7 @@ header[data-testid="stHeader"] {{
     object-fit: contain;
 }}
 
-/* 3. Thẻ Đơn hàng (Order Card) */
+/* Thẻ Đơn hàng */
 .order-card {{
     background: #ffffff;
     border: 1px solid #edf0ed;
@@ -167,12 +170,12 @@ header[data-testid="stHeader"] {{
     font-weight: 600;
 }}
 
-/* 4. Metric Boxes & Thống kê */
+/* Metric Box */
 .metric-box {{
     background: #ffffff;
     border: 1px solid #edf0ed;
     border-radius: 14px;
-    padding: 12px 14px;
+    padding: 14px 16px;
     text-align: left;
     box-shadow: 0 2px 6px rgba(0,0,0,0.02);
 }}
@@ -187,7 +190,6 @@ header[data-testid="stHeader"] {{
     margin-top: 4px;
 }}
 
-/* 5. Gói sản phẩm con trong Form Lên đơn */
 .product-item-title {{
     font-size: 13px;
     font-weight: 700;
@@ -195,14 +197,14 @@ header[data-testid="stHeader"] {{
     margin-bottom: 8px;
 }}
 
-/* 6. Thanh điều hướng Tab */
+/* Thanh điều hướng Tab Desktop */
 div[class*="st-key-vifex_nav"] {{
     margin-bottom: 16px;
 }}
 div[class*="st-key-vifex_nav"] button {{
-    padding: 8px 4px !important;
-    font-size: 12px !important;
-    border-radius: 10px !important;
+    padding: 10px 4px !important;
+    font-size: 13px !important;
+    border-radius: 12px !important;
     border: 1px solid #e5e7eb !important;
     background-color: #f9fafb !important;
     color: #374151 !important;
@@ -219,6 +221,54 @@ div.stButton > button[kind="primary"] {{
     padding: 12px 20px !important;
     font-weight: 600 !important;
 }}
+
+/* =======================================================
+   2. GIAO DIỆN MOBILE (ÉP DẠNG LƯỚI GRID 3 CỘT KHÔNG BỊ DỌC)
+   ======================================================= */
+@media screen and (max-width: 768px) {
+    .block-container {{
+        max-width: 100% !important;
+        padding-top: 4.8rem !important;
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }}
+
+    .vifex-banner {{
+        padding: 14px 16px !important;
+        border-radius: 14px !important;
+    }}
+    .vifex-banner .main-title {{
+        font-size: 19px !important;
+    }}
+
+    .vifex-banner-logo {{
+        width: 62px !important;
+        height: 62px !important;
+        border-radius: 12px !important;
+        padding: 5px !important;
+        margin-left: 10px !important;
+    }}
+
+    /* ÉP STREAMLIT KHÔNG XẾP DỌC CÁC CỘT TRONG MENU ĐIỀU HƯỚNG */
+    div[class*="st-key-vifex_nav"] [data-testid="stHorizontalBlock"] {{
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
+    }}
+    div[class*="st-key-vifex_nav"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+        width: 33.33% !important;
+        min-width: 33.33% !important;
+        flex: 1 1 33.33% !important;
+        padding: 0 !important;
+    }}
+    div[class*="st-key-vifex_nav"] button {{
+        padding: 8px 2px !important;
+        font-size: 11.5px !important;
+        height: 42px !important;
+        white-space: nowrap !important;
+    }}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -231,7 +281,7 @@ def banner(title, subtitle=None, highlight_text=None):
     if logo_b64:
         logo_html = f'<div class="vifex-banner-logo"><img src="data:image/png;base64,{logo_b64}" alt="VIFEX Logo" /></div>'
     else:
-        logo_html = '<div class="vifex-banner-logo" style="font-weight:800;color:#15503F;font-size:11px;">VIFEX</div>'
+        logo_html = '<div class="vifex-banner-logo" style="font-weight:800;color:#15503F;font-size:12px;">VIFEX</div>'
 
     html_code = (
         f'<div class="vifex-banner">'
@@ -533,7 +583,7 @@ if "order_items_count" not in st.session_state:
     st.session_state.order_items_count = 1
 
 # ---------------------------------------------------------------------------
-# THANH ĐIỀU HƯỚNG TAB
+# THANH ĐIỀU HƯỚNG TAB (DẠNG LƯỚI GRID 3 CỘT TRÊN CẢ PC VÀ MOBILE)
 # ---------------------------------------------------------------------------
 NAV_OPTIONS = ["Trang chủ", "Đơn hàng", "Lên đơn", "Lương Sale", "Dashboard", "Khách hàng"]
 NAV_ICONS = {"Trang chủ": "🏠", "Đơn hàng": "📦", "Lên đơn": "➕", "Lương Sale": "💰", "Dashboard": "📊", "Khách hàng": "👥"}
