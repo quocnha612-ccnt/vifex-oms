@@ -128,10 +128,38 @@ def serial_to_date(v):
 
 
 def read_raw(name):
-    """Đọc sheet với UNFORMATTED_VALUE để tránh lỗi số bị mất hàng nghìn."""
+    """Đọc 1 sheet với UNFORMATTED_VALUE (dùng cho ghi/tra cứu đơn lẻ, không dùng cho load chính)."""
     ws = get_spreadsheet().worksheet(name)
     records = ws.get_all_records(value_render_option="UNFORMATTED_VALUE")
-    return pd.DataFrame(records), ws
+    if records:
+        df = pd.DataFrame(records)
+    else:
+        headers = ws.row_values(1)
+        df = pd.DataFrame(columns=headers)
+    return df, ws
+
+
+SHEET_NAMES = ["San_pham", "Khach_hang", "Nhan_vien", "Lich_su_gia", "Don_hang", "Chi_tiet_don_hang"]
+
+
+def read_all_sheets_batch(names):
+    """Đọc nhiều sheet trong 1 lần gọi API duy nhất — nhanh hơn nhiều so với gọi từng sheet."""
+    sh = get_spreadsheet()
+    ranges = [f"{n}!A:Z" for n in names]
+    resp = sh.values_batch_get(ranges, params={"valueRenderOption": "UNFORMATTED_VALUE"})
+    result = {}
+    for n, vr in zip(names, resp.get("valueRanges", [])):
+        values = vr.get("values", [])
+        if not values:
+            result[n] = pd.DataFrame()
+            continue
+        header = values[0]
+        rows = values[1:]
+        rows = [r + [None] * (len(header) - len(r)) for r in rows]
+        df = pd.DataFrame(rows, columns=header)
+        df = df.replace("", None)
+        result[n] = df
+    return result
 
 
 def to_date_col(df, col):
@@ -140,18 +168,24 @@ def to_date_col(df, col):
     return df
 
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=60)
 def load_data():
-    san_pham_df, _ = read_raw("San_pham")
-    khach_hang_df, _ = read_raw("Khach_hang")
-    nhan_vien_df, _ = read_raw("Nhan_vien")
-    lich_su_gia_df, _ = read_raw("Lich_su_gia")
-    don_hang_df, _ = read_raw("Don_hang")
-    ctdh_df, _ = read_raw("Chi_tiet_don_hang")
+    raw = read_all_sheets_batch(SHEET_NAMES)
+    san_pham_df = raw["San_pham"]
+    khach_hang_df = raw["Khach_hang"]
+    nhan_vien_df = raw["Nhan_vien"]
+    lich_su_gia_df = raw["Lich_su_gia"]
+    don_hang_df = raw["Don_hang"]
+    ctdh_df = raw["Chi_tiet_don_hang"]
 
     lich_su_gia_df = to_date_col(lich_su_gia_df, "Ngay_bat_dau")
     lich_su_gia_df = to_date_col(lich_su_gia_df, "Ngay_ket_thuc")
     don_hang_df = to_date_col(don_hang_df, "Ngay_len_don")
+
+    # ép các cột số về đúng kiểu số (batch_get trả nguyên dạng, không tự ép kiểu như get_all_records)
+    for col in ["SL_dat", "Tang", "Don_gia_ap_dung", "Chiet_khau", "Thanh_tien", "San_luong_xuat_kho"]:
+        if col in ctdh_df.columns:
+            ctdh_df[col] = pd.to_numeric(ctdh_df[col], errors="coerce").fillna(0)
 
     return {
         "san_pham": san_pham_df,
@@ -223,8 +257,17 @@ def update_order_status(ma_don, new_status):
 # ---------------------------------------------------------------------------
 @st.cache_resource
 def get_font(size):
-    path = os.path.join(os.path.dirname(__file__), "fonts", "NotoSans.ttf")
-    return ImageFont.truetype(path, size)
+    base = os.path.dirname(__file__)
+    candidates = [
+        os.path.join(base, "fonts", "NotoSans.ttf"),
+        os.path.join(base, "NotoSans.ttf"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return ImageFont.truetype(p, size)
+    raise FileNotFoundError(
+        "Không tìm thấy font NotoSans.ttf. Cần upload file này vào repo (thư mục fonts/ hoặc gốc repo)."
+    )
 
 
 def draw_bold(draw, pos, text, font, fill):
@@ -325,15 +368,43 @@ if not ctdh_df.empty and not don_hang_df.empty:
 if "selected_order" not in st.session_state:
     st.session_state.selected_order = None
 if "nav" not in st.session_state:
-    st.session_state.nav = "Trang chủ"
+    st.session_state.nav = "🏠 Trang chủ"
 
 # ---------------------------------------------------------------------------
-# Điều hướng
+# Điều hướng — dùng nút bấm (tap target lớn hơn radio, bấm chính xác hơn)
 # ---------------------------------------------------------------------------
+st.markdown(f"""
+<style>
+.nav-row div.stButton > button {{
+    width: 100%;
+    padding: 10px 4px;
+    font-size: 13px;
+    border-radius: 10px !important;
+}}
+.nav-row div.stButton > button[kind="secondary"] {{
+    background-color: #fafaf6 !important;
+    color: #444 !important;
+    border: 1px solid #e2e0d5 !important;
+}}
+.nav-row div.stButton > button[kind="primary"] {{
+    background-color: {GREEN} !important;
+    color: #fff !important;
+    border: none !important;
+}}
+</style>
+""", unsafe_allow_html=True)
+
 NAV_OPTIONS = ["🏠 Trang chủ", "📦 Đơn hàng", "➕ Lên đơn", "📊 Dashboard", "👥 Khách hàng"]
-nav = st.radio("Điều hướng", NAV_OPTIONS, horizontal=True, label_visibility="collapsed",
-                index=NAV_OPTIONS.index(st.session_state.nav) if st.session_state.nav in NAV_OPTIONS else 0)
-st.session_state.nav = nav
+st.markdown('<div class="nav-row">', unsafe_allow_html=True)
+nav_cols = st.columns(len(NAV_OPTIONS))
+for col, opt in zip(nav_cols, NAV_OPTIONS):
+    is_active = st.session_state.nav == opt
+    if col.button(opt, key=f"nav_{opt}", type="primary" if is_active else "secondary",
+                  use_container_width=True):
+        st.session_state.nav = opt
+        st.rerun()
+st.markdown('</div>', unsafe_allow_html=True)
+nav = st.session_state.nav
 st.divider()
 
 
