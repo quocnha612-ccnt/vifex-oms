@@ -23,8 +23,9 @@ AMBER_BG = "#FEF3C7"
 GRAY_BG = "#F3F4F6"
 GRAY_TEXT = "#4B5563"
 
-VALID_STATUSES = ["Đang giao hàng", "Đã nhận hàng"]
-ALL_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàng"]
+# Tất cả trạng thái ngoại trừ 'Lên đơn' đều được tính vào doanh số & lương Sale
+ALL_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
+VALID_STATUSES = ["Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
 
 # ---------------------------------------------------------------------------
 # HÀM LOAD ẢNH LOGO DƯỚI DẠNG BASE64
@@ -294,8 +295,9 @@ def status_badge_html(status):
     colors = {
         "Lên đơn": (AMBER, AMBER_BG),
         "Gửi kho": (AMBER, AMBER_BG),
-        "Đang giao hàng": (RED, RED_BG),
+        "Đang giao hàng": (AMBER, AMBER_BG),
         "Đã nhận hàng": (GREEN, GREEN_BG),
+        "Chưa Thanh toán": (RED, RED_BG),
     }
     fg, bg = colors.get(status, (GRAY_TEXT, GRAY_BG))
     return f'<span class="badge" style="background:{bg};color:{fg}">{status}</span>'
@@ -667,7 +669,7 @@ def render_order_detail(ma_don):
 # 1. TRANG CHỦ
 # ---------------------------------------------------------------------------
 if nav == "🏠 Trang chủ":
-    pending = don_hang_df[don_hang_df["Trang_thai"].isin(["Gửi kho", "Đang giao hàng"])] if not don_hang_df.empty else pd.DataFrame()
+    pending = don_hang_df[don_hang_df["Trang_thai"].isin(["Gửi kho", "Đang giao hàng", "Chưa Thanh toán"])] if not don_hang_df.empty else pd.DataFrame()
     so_don_pending = len(pending)
     
     banner("Trang chủ", subtitle="Xin chào, Coco", highlight_text=f"{so_don_pending} đơn cần xử lý")
@@ -684,8 +686,8 @@ if nav == "🏠 Trang chủ":
         </div>""", unsafe_allow_html=True)
         c2.markdown(f"""
         <div class="metric-box" style="background:{RED_BG};border-color:#FECACA;">
-            <div class="metric-value" style="color:{RED};margin-top:0;">{int(counts.get('Đang giao hàng', 0))}</div>
-            <div class="metric-label" style="color:#991B1B;font-weight:600;">Đang giao</div>
+            <div class="metric-value" style="color:{RED};margin-top:0;">{int(counts.get('Đang giao hàng', 0)) + int(counts.get('Chưa Thanh toán', 0))}</div>
+            <div class="metric-label" style="color:#991B1B;font-weight:600;">Đang giao / Chưa TT</div>
         </div>""", unsafe_allow_html=True)
 
         st.write("")
@@ -779,7 +781,7 @@ elif nav == "➕ Lên đơn":
         
         ghi_chu_tt = st.text_input("Ghi chú thanh toán", "")
 
-        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin-12px 0 8px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:12px 0 8px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
 
         line_items = []
         ten_sp_list = san_pham_df["Ten_SP"].dropna().tolist()
@@ -869,6 +871,7 @@ elif nav == "💰 Lương Sale":
         ma_nv = nv_row["Ma_NV"]
         ty_le_hh = float(nv_row.get("Ty_le_hoa_hong") or 0.02)
 
+        # Tính doanh số theo các trạng thái hợp lệ (Gửi kho, Đang giao hàng, Đã nhận hàng, Chưa Thanh toán)
         valid = merged[merged["Trang_thai"].isin(VALID_STATUSES)].copy()
         valid["Ngay_len_don"] = pd.to_datetime(valid["Ngay_len_don"], errors="coerce")
         of_sale = valid[(valid["Sale_phu_trach"] == ma_nv) &
@@ -879,7 +882,7 @@ elif nav == "💰 Lương Sale":
         doanh_thu_sau_vat = doanh_thu * (1 - 0.08)
         luong = doanh_thu_sau_vat * ty_le_hh
 
-        st.caption("Chỉ tính đơn ở trạng thái Đang giao hàng / Đã nhận hàng.")
+        st.caption("Tính theo tất cả các đơn hàng đã duyệt xuất kho trở đi (ngoại trừ trạng thái 'Lên đơn').")
 
         c1, c2 = st.columns(2)
         c1.markdown(f"""<div class="metric-box"><div class="metric-label">Doanh thu hợp lệ</div>
