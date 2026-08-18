@@ -540,9 +540,9 @@ elif nav == "➕ Lên đơn":
     n_dong = st.number_input("Số dòng sản phẩm", min_value=1, max_value=20, value=1, step=1)
 
     with st.form("form_don_hang", clear_on_submit=True):
-        ma_kh = st.selectbox("Khách hàng (NPP)", khach_hang_df["Ma_KH"].tolist(),
-                              format_func=lambda x: khach_hang_df.loc[khach_hang_df["Ma_KH"] == x, "Ten_NPP"].values[0])
-        kh_row = khach_hang_df[khach_hang_df["Ma_KH"] == ma_kh].iloc[0]
+        ten_npp = st.selectbox("Khách hàng (NPP)", khach_hang_df["Ten_NPP"].tolist())
+        kh_row = khach_hang_df[khach_hang_df["Ten_NPP"] == ten_npp].iloc[0]
+        ma_kh = kh_row["Ma_KH"]
         st.caption(f"Sale phụ trách: **{kh_row['Sale_phu_trach']}**")
 
         ngay_len_don = st.date_input("Ngày lên đơn", value=date.today())
