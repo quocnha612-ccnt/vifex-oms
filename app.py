@@ -539,12 +539,15 @@ elif nav == "➕ Lên đơn":
 
     n_dong = st.number_input("Số dòng sản phẩm", min_value=1, max_value=20, value=1, step=1)
 
-    with st.form("form_don_hang", clear_on_submit=True):
-        ten_npp = st.selectbox("Khách hàng (NPP)", khach_hang_df["Ten_NPP"].tolist())
-        kh_row = khach_hang_df[khach_hang_df["Ten_NPP"] == ten_npp].iloc[0]
-        ma_kh = kh_row["Ma_KH"]
-        st.caption(f"Sale phụ trách: **{kh_row['Sale_phu_trach']}**")
+    ten_npp = st.selectbox("Khách hàng (NPP)", khach_hang_df["Ten_NPP"].dropna().tolist())
+    kh_matches = khach_hang_df[khach_hang_df["Ten_NPP"] == ten_npp]
+    kh_row = kh_matches.iloc[0] if not kh_matches.empty else {}
+    ma_kh = kh_row.get("Ma_KH", "")
+    sale_pt = kh_row.get("Sale_phu_trach", "")
 
+    st.caption(f"Sale phụ trách: **{sale_pt}**")
+
+    with st.form("form_don_hang", clear_on_submit=True):
         ngay_len_don = st.date_input("Ngày lên đơn", value=date.today())
         hinh_thuc_tt = st.selectbox("Hình thức thanh toán", ["Tiền mặt", "Chuyển khoản", "Công nợ", "Khác"])
         ghi_chu_tt = st.text_input("Ghi chú thanh toán", "")
@@ -552,7 +555,7 @@ elif nav == "➕ Lên đơn":
         st.markdown("**Danh sách sản phẩm trong đơn**")
 
         line_items = []
-        ten_sp_list = san_pham_df["Ten_SP"].tolist()
+        ten_sp_list = san_pham_df["Ten_SP"].dropna().tolist()
         for i in range(int(n_dong)):
             c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
             with c1:
@@ -577,7 +580,6 @@ elif nav == "➕ Lên đơn":
         ctdh_ws = get_ws("Chi_tiet_don_hang")
         ma_don = next_code(don_hang_ws, 1, "DH", 5)
 
-        sale_pt = kh_row["Sale_phu_trach"]
         don_hang_ws.append_row([
             ma_don, ngay_len_don.strftime("%Y-%m-%d"), ma_kh, sale_pt,
             "Lên đơn", hinh_thuc_tt, ghi_chu_tt, ngay_len_don.strftime("%Y-%m-%d"),
