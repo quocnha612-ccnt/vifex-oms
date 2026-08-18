@@ -45,11 +45,11 @@ def get_logo_base64():
     return None
 
 # ---------------------------------------------------------------------------
-# CSS RESPONSIVE HOÀN CHỈNH (KHÔNG DÙNG F-STRING TRÁNH LỖI CÚ PHÁP)
+# CSS RESPONSIVE (MÁY TÍNH RỘNG RÃI - MOBILE DẠNG LƯỚI GRID KHÔNG BỊ DỌC)
 # ---------------------------------------------------------------------------
 st.markdown("""
 <style>
-/* Ẩn bớt phần header đè của Streamlit */
+/* Ẩn header đè của Streamlit */
 header[data-testid="stHeader"] {
     background-color: transparent !important;
     z-index: 1 !important;
@@ -577,7 +577,7 @@ if "order_items_count" not in st.session_state:
     st.session_state.order_items_count = 1
 
 # ---------------------------------------------------------------------------
-# THANH ĐIỀU HƯỚNG TAB
+# THANH ĐIỀU HƯỚNG TAB (DẠNG LƯỚI GRID 3 CỘT TRÊN CẢ PC VÀ MOBILE)
 # ---------------------------------------------------------------------------
 NAV_OPTIONS = ["Trang chủ", "Đơn hàng", "Lên đơn", "Lương Sale", "Dashboard", "Khách hàng"]
 NAV_ICONS = {"Trang chủ": "🏠", "Đơn hàng": "📦", "Lên đơn": "➕", "Lương Sale": "💰", "Dashboard": "📊", "Khách hàng": "👥"}
@@ -779,7 +779,7 @@ elif nav == "➕ Lên đơn":
         
         ghi_chu_tt = st.text_input("Ghi chú thanh toán", "")
 
-        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:12px 0 8px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin-12px 0 8px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
 
         line_items = []
         ten_sp_list = san_pham_df["Ten_SP"].dropna().tolist()
@@ -848,7 +848,7 @@ elif nav == "➕ Lên đơn":
         st.balloons()
 
 # ---------------------------------------------------------------------------
-# 4. LƯƠNG SALE
+# 4. LƯƠNG SALE (BỔ SUNG BẢNG THỐNG KÊ THEO NPP & NHÓM DANH MỤC)
 # ---------------------------------------------------------------------------
 elif nav == "💰 Lương Sale":
     banner("Doanh số & Lương Sale")
@@ -895,10 +895,31 @@ elif nav == "💰 Lương Sale":
             <div class="metric-value" style="color:{RED}">{money(luong)}</div></div>""", unsafe_allow_html=True)
 
         st.write("")
-        st.markdown(f"#### Chi tiết hàng bán tháng {thang}/{nam}")
+        st.markdown(f"#### 📋 Doanh số theo Nhà phân phối & Nhóm hàng (Tháng {thang}/{nam})")
         if of_sale.empty:
             st.caption("Chưa có đơn hợp lệ nào trong tháng này.")
         else:
+            # 1. Ghép nối lấy Tên NPP và Nhóm danh mục
+            df_nhom = of_sale.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
+            df_nhom = df_nhom.merge(san_pham_df[["Ma_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
+            
+            # Điền mặc định nếu thiếu nhóm
+            df_nhom["Nhom_danh_muc"] = df_nhom["Nhom_danh_muc"].fillna("Khác")
+
+            # 2. Gom nhóm theo NPP và Nhóm hàng
+            by_npp = df_nhom.groupby(["Ten_NPP", "Nhom_danh_muc"]).agg(
+                San_luong=("San_luong_xuat_kho", "sum"),
+                Doanh_thu=("Thanh_tien", "sum"),
+            ).reset_index().sort_values(["Ten_NPP", "Doanh_thu"], ascending=[True, False])
+
+            # 3. Định dạng hiển thị
+            by_npp["Doanh_thu"] = by_npp["Doanh_thu"].apply(money)
+            by_npp.columns = ["Nhà phân phối (NPP)", "Nhóm danh mục", "Sản lượng (Thùng)", "Doanh thu"]
+            st.dataframe(by_npp, hide_index=True, use_container_width=True)
+
+        st.write("")
+        st.markdown(f"#### 📦 Chi tiết từng mặt hàng đã bán")
+        if not of_sale.empty:
             by_sp = of_sale.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
             by_sp = by_sp.groupby("Ten_SP").agg(
                 San_luong=("San_luong_xuat_kho", "sum"),
