@@ -38,19 +38,6 @@ st.markdown(f"""
 .vifex-banner .brand {{ font-size: 13px; font-weight: 700; letter-spacing: 1px; opacity: 0.85; }}
 .vifex-banner .title {{ font-size: 20px; font-weight: 700; margin-top: 2px; }}
 
-div.stButton > button {{
-    background-color: {RED} !important;
-    color: #fff !important;
-    border: none !important;
-    border-radius: 10px !important;
-    font-weight: 600 !important;
-}}
-div.stButton > button:hover {{ background-color: #b62222 !important; }}
-button[kind="secondary"] {{
-    background-color: {GREEN_BG} !important;
-    color: {GREEN} !important;
-}}
-
 .badge {{
     display: inline-block; padding: 4px 12px; border-radius: 8px;
     font-size: 13px; font-weight: 600; margin-right: 6px;
@@ -349,6 +336,7 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
 data = load_data()
 san_pham_df = data["san_pham"]
 khach_hang_df = data["khach_hang"]
+nhan_vien_df = data["nhan_vien"]
 lich_su_gia_df = data["lich_su_gia"]
 don_hang_df = data["don_hang"]
 ctdh_df = data["ctdh"]
@@ -371,39 +359,38 @@ if "nav" not in st.session_state:
     st.session_state.nav = "🏠 Trang chủ"
 
 # ---------------------------------------------------------------------------
-# Điều hướng — dùng nút bấm (tap target lớn hơn radio, bấm chính xác hơn)
+# Điều hướng — dùng container có key thật để CSS áp đúng phạm vi
 # ---------------------------------------------------------------------------
 st.markdown(f"""
 <style>
-.nav-row div.stButton > button {{
+div[class*="st-key-vifex_nav"] div.stButton > button {{
     width: 100%;
     padding: 10px 4px;
     font-size: 13px;
     border-radius: 10px !important;
+    border: none !important;
 }}
-.nav-row div.stButton > button[kind="secondary"] {{
+div[class*="st-key-vifex_nav"] button[kind="secondary"] {{
     background-color: #fafaf6 !important;
     color: #444 !important;
     border: 1px solid #e2e0d5 !important;
 }}
-.nav-row div.stButton > button[kind="primary"] {{
+div[class*="st-key-vifex_nav"] button[kind="primary"] {{
     background-color: {GREEN} !important;
     color: #fff !important;
-    border: none !important;
 }}
 </style>
 """, unsafe_allow_html=True)
 
-NAV_OPTIONS = ["🏠 Trang chủ", "📦 Đơn hàng", "➕ Lên đơn", "📊 Dashboard", "👥 Khách hàng"]
-st.markdown('<div class="nav-row">', unsafe_allow_html=True)
-nav_cols = st.columns(len(NAV_OPTIONS))
-for col, opt in zip(nav_cols, NAV_OPTIONS):
-    is_active = st.session_state.nav == opt
-    if col.button(opt, key=f"nav_{opt}", type="primary" if is_active else "secondary",
-                  use_container_width=True):
-        st.session_state.nav = opt
-        st.rerun()
-st.markdown('</div>', unsafe_allow_html=True)
+NAV_OPTIONS = ["🏠 Trang chủ", "📦 Đơn hàng", "➕ Lên đơn", "💰 Lương Sale", "📊 Dashboard", "👥 Khách hàng"]
+with st.container(key="vifex_nav"):
+    nav_cols = st.columns(len(NAV_OPTIONS))
+    for col, opt in zip(nav_cols, NAV_OPTIONS):
+        is_active = st.session_state.nav == opt
+        if col.button(opt, key=f"nav_{opt}", type="primary" if is_active else "secondary",
+                      use_container_width=True):
+            st.session_state.nav = opt
+            st.rerun()
 nav = st.session_state.nav
 st.divider()
 
@@ -450,7 +437,7 @@ def render_order_detail(ma_don):
                                    index=ALL_STATUSES.index(order_row["Trang_thai"])
                                    if order_row["Trang_thai"] in ALL_STATUSES else 0,
                                    key=f"status_{ma_don}")
-        if st.button("Lưu trạng thái", key=f"save_status_{ma_don}"):
+        if st.button("Lưu trạng thái", key=f"save_status_{ma_don}", type="primary"):
             update_order_status(ma_don, new_status)
             st.success("Đã cập nhật trạng thái.")
             st.rerun()
@@ -458,7 +445,7 @@ def render_order_detail(ma_don):
         png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
         st.download_button("📥 Tải phiếu xuất đơn hàng", data=png_bytes,
                             file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
-                            key=f"dl_{ma_don}")
+                            key=f"dl_{ma_don}", type="primary")
 
     if st.button("← Đóng chi tiết", key=f"close_{ma_don}"):
         st.session_state.selected_order = None
@@ -502,7 +489,7 @@ if nav == "🏠 Trang chủ":
                 st.session_state.selected_order = r["Ma_don"]
                 st.rerun()
 
-    if st.button("+ Tạo đơn mới", key="home_new_order"):
+    if st.button("+ Tạo đơn mới", key="home_new_order", type="primary"):
         st.session_state.nav = "➕ Lên đơn"
         st.rerun()
 
@@ -578,7 +565,7 @@ elif nav == "➕ Lên đơn":
                 chiet_khau = st.number_input("Chiết khấu (đ)", min_value=0, value=0, step=10000, key=f"ck_{i}")
             line_items.append((ten_sp, sl_dat, tang, chiet_khau))
 
-        submitted = st.form_submit_button("✅ Tạo đơn hàng", use_container_width=True)
+        submitted = st.form_submit_button("✅ Tạo đơn hàng", use_container_width=True, type="primary")
 
     if submitted:
         valid_items = [li for li in line_items if li[1] > 0]
@@ -612,6 +599,62 @@ elif nav == "➕ Lên đơn":
         refresh()
         st.success(f"Đã tạo đơn **{ma_don}** — tổng giá trị: {money(tong_tien)}")
         st.balloons()
+
+# ---------------------------------------------------------------------------
+# Doanh số & Lương Sale
+# ---------------------------------------------------------------------------
+elif nav == "💰 Lương Sale":
+    banner("Doanh số & Lương Sale")
+
+    if nhan_vien_df.empty:
+        st.info("Chưa có dữ liệu nhân viên Sale.")
+    elif merged.empty:
+        st.info("Chưa có dữ liệu đơn hàng để tính doanh số.")
+    else:
+        c1, c2, c3 = st.columns(3)
+        ten_nv = c1.selectbox("Chọn Sale", nhan_vien_df["Ten_NV"].tolist())
+        thang = c2.selectbox("Tháng", list(range(1, 13)), index=(date.today().month - 1), key="sale_thang")
+        nam = c3.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1, key="sale_nam")
+
+        nv_row = nhan_vien_df[nhan_vien_df["Ten_NV"] == ten_nv].iloc[0]
+        ma_nv = nv_row["Ma_NV"]
+        ty_le_hh = float(nv_row.get("Ty_le_hoa_hong") or 0.02)
+
+        valid = merged[merged["Trang_thai"].isin(VALID_STATUSES)].copy()
+        valid["Ngay_len_don"] = pd.to_datetime(valid["Ngay_len_don"], errors="coerce")
+        of_sale = valid[(valid["Sale_phu_trach"] == ma_nv) &
+                         (valid["Ngay_len_don"].dt.month == thang) &
+                         (valid["Ngay_len_don"].dt.year == nam)]
+
+        doanh_thu = of_sale["Thanh_tien"].sum()
+        doanh_thu_sau_vat = doanh_thu * (1 - 0.08)
+        luong = doanh_thu_sau_vat * ty_le_hh
+
+        st.caption("Chỉ tính đơn ở trạng thái Đang giao hàng / Đã nhận hàng — đơn Lên đơn hoặc Gửi kho chưa được tính.")
+
+        c1, c2 = st.columns(2)
+        c1.markdown(f"""<div class="metric-box"><div class="metric-label">Doanh thu hợp lệ</div>
+            <div class="metric-value" style="color:{GREEN}">{money(doanh_thu)}</div></div>""", unsafe_allow_html=True)
+        c2.markdown(f"""<div class="metric-box"><div class="metric-label">Sau khi trừ VAT 8%</div>
+            <div class="metric-value">{money(doanh_thu_sau_vat)}</div></div>""", unsafe_allow_html=True)
+        c3, c4 = st.columns(2)
+        c3.markdown(f"""<div class="metric-box"><div class="metric-label">Tỷ lệ hoa hồng</div>
+            <div class="metric-value">{ty_le_hh*100:.1f}%</div></div>""", unsafe_allow_html=True)
+        c4.markdown(f"""<div class="metric-box"><div class="metric-label">Lương tháng {thang}/{nam}</div>
+            <div class="metric-value" style="color:{RED}">{money(luong)}</div></div>""", unsafe_allow_html=True)
+
+        st.markdown(f"#### Chi tiết hàng hóa {ten_nv} đã bán trong tháng {thang}/{nam}")
+        if of_sale.empty:
+            st.caption("Chưa có đơn hợp lệ nào trong tháng này.")
+        else:
+            by_sp = of_sale.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
+            by_sp = by_sp.groupby("Ten_SP").agg(
+                San_luong=("San_luong_xuat_kho", "sum"),
+                Doanh_thu=("Thanh_tien", "sum"),
+            ).reset_index().sort_values("Doanh_thu", ascending=False)
+            by_sp["Doanh_thu"] = by_sp["Doanh_thu"].apply(money)
+            by_sp.columns = ["Sản phẩm", "Sản lượng", "Doanh thu"]
+            st.dataframe(by_sp, hide_index=True, use_container_width=True)
 
 # ---------------------------------------------------------------------------
 # Dashboard
