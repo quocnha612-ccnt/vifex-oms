@@ -560,7 +560,7 @@ elif nav == "➕ Lên đơn":
             with c2:
                 sl_dat = st.number_input("SL đặt", min_value=0, value=0, key=f"sl_{i}")
             with c3:
-                tang = st.number_input("Tặng", min_value=0.0, value=0.0, step=0.1,, key=f"tang_{i}")
+                tang = st.number_input("Tặng", min_value=0.0, value=0.0, step=0.1, key=f"tang_{i}")
             with c4:
                 chiet_khau = st.number_input("Chiết khấu (đ)", min_value=0, value=0, step=10000, key=f"ck_{i}")
             line_items.append((ten_sp, sl_dat, tang, chiet_khau))
