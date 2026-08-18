@@ -549,7 +549,8 @@ elif nav == "➕ Lên đơn":
 
     st.caption(f"Sale phụ trách: **{sale_pt}**")
 
-    with st.form("form_don_hang", clear_on_submit=True):
+    # Sử dụng container có viền để giữ trọn vẹn phong cách thiết kế
+    with st.container(border=True):
         ngay_len_don = st.date_input("Ngày lên đơn", value=date.today())
         hinh_thuc_tt = st.selectbox("Hình thức thanh toán", ["Tiền mặt", "Chuyển khoản", "Công nợ", "Khác"])
         ghi_chu_tt = st.text_input("Ghi chú thanh toán", "")
@@ -570,19 +571,20 @@ elif nav == "➕ Lên đơn":
                 chiet_khau = st.number_input("Chiết khấu (đ)", min_value=0, value=0, step=10000, key=f"ck_{i}")
             line_items.append((ten_sp, sl_dat, tang, chiet_khau))
 
-        submitted = st.form_submit_button("✅ Tạo đơn hàng", use_container_width=True, type="primary")
-
-    # Các nút Thêm sản phẩm và Bớt dòng sản phẩm
-    col_add, col_remove, _ = st.columns([2, 2, 4])
-    with col_add:
-        if st.button("➕ Thêm sản phẩm", key="btn_add_product", use_container_width=True):
-            st.session_state.order_items_count += 1
-            st.rerun()
-    with col_remove:
-        if st.session_state.order_items_count > 1:
-            if st.button("➖ Bớt sản phẩm", key="btn_remove_product", use_container_width=True):
-                st.session_state.order_items_count -= 1
+        # Nút Thêm / Bớt sản phẩm đặt ngay phía dưới danh sách sản phẩm
+        col_add, col_remove, _ = st.columns([2, 2, 4])
+        with col_add:
+            if st.button("➕ Thêm sản phẩm", key="btn_add_product", use_container_width=True):
+                st.session_state.order_items_count += 1
                 st.rerun()
+        with col_remove:
+            if st.session_state.order_items_count > 1:
+                if st.button("➖ Bớt sản phẩm", key="btn_remove_product", use_container_width=True):
+                    st.session_state.order_items_count -= 1
+                    st.rerun()
+
+        st.write("")  # Khoảng cách nhỏ
+        submitted = st.button("✅ Tạo đơn hàng", use_container_width=True, type="primary")
 
     if submitted:
         valid_items = [li for li in line_items if li[1] > 0]
