@@ -1,5 +1,6 @@
 import io
 import os
+import base64
 from datetime import date, datetime
 
 import gspread
@@ -26,28 +27,58 @@ VALID_STATUSES = ["Đang giao hàng", "Đã nhận hàng"]
 ALL_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàng"]
 
 # ---------------------------------------------------------------------------
-# CSS TỐI ƯU GIAO DIỆN (MOBILE APP FIRST & RESPONSIVE DESKTOP)
+# HÀM LOAD ẢNH LOGO DƯỚI DẠNG BASE64
+# ---------------------------------------------------------------------------
+def get_logo_base64():
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "logo.png"),
+        os.path.join(os.path.dirname(__file__), "2.png"),
+        os.path.join(os.path.dirname(__file__), "logo.png.png"),
+        "logo.png",
+        "2.png",
+        "logo.png.png",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            with open(p, "rb") as img_f:
+                return base64.b64encode(img_f.read()).decode()
+    return None
+
+# ---------------------------------------------------------------------------
+# CSS TỐI ƯU GIAO DIỆN (FIX TRIỆT ĐỂ BỊ KHUẤT HEADER BỞI THANH MENU STREAMLIT)
 # ---------------------------------------------------------------------------
 st.markdown(f"""
 <style>
+/* Ẩn bớt phần header nền của Streamlit và set padding an toàn */
+header[data-testid="stHeader"] {{
+    background-color: transparent !important;
+    z-index: 1 !important;
+}}
+
 /* 1. Tối ưu khung chứa chính (App Container) */
 .block-container {{
-    max-width: 520px !important;
-    padding-top: 1rem !important;
-    padding-bottom: 5.5rem !important;
-    padding-left: 0.85rem !important;
-    padding-right: 0.85rem !important;
+    max-width: 540px !important;
+    padding-top: 5.5rem !important;
+    padding-bottom: 4rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
     margin: 0 auto !important;
 }}
 
-/* 2. Header Banner chuẩn Mobile App */
+/* 2. Header Banner chuẩn VIFEX kèm Logo */
 .vifex-banner {{
     background: {GREEN};
     color: #ffffff;
-    padding: 16px 20px;
+    padding: 16px 18px;
     border-radius: 16px;
     margin-bottom: 16px;
     box-shadow: 0 4px 12px rgba(21, 80, 63, 0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}}
+.vifex-banner-left {{
+    flex: 1;
 }}
 .vifex-banner .brand-tag {{
     display: flex;
@@ -76,6 +107,24 @@ st.markdown(f"""
     font-weight: 700;
     line-height: 1.25;
     margin-top: 2px;
+}}
+.vifex-banner-logo {{
+    background: #ffffff;
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    margin-left: 14px;
+    flex-shrink: 0;
+}}
+.vifex-banner-logo img {{
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
 }}
 
 /* 3. Thẻ Đơn hàng (Order Card) */
@@ -139,13 +188,6 @@ st.markdown(f"""
 }}
 
 /* 5. Gói sản phẩm con trong Form Lên đơn */
-.product-item-card {{
-    background: #fbfcfb;
-    border: 1px solid #e5e9e6;
-    border-radius: 12px;
-    padding: 12px 14px 6px 14px;
-    margin-bottom: 12px;
-}}
 .product-item-title {{
     font-size: 13px;
     font-weight: 700;
@@ -153,12 +195,12 @@ st.markdown(f"""
     margin-bottom: 8px;
 }}
 
-/* 6. Thanh điều hướng Tab phía trên tối ưu */
+/* 6. Thanh điều hướng Tab */
 div[class*="st-key-vifex_nav"] {{
-    margin-bottom: 12px;
+    margin-bottom: 16px;
 }}
 div[class*="st-key-vifex_nav"] button {{
-    padding: 6px 2px !important;
+    padding: 8px 4px !important;
     font-size: 12px !important;
     border-radius: 10px !important;
     border: 1px solid #e5e7eb !important;
@@ -172,7 +214,6 @@ div[class*="st-key-vifex_nav"] button[kind="primary"] {{
     font-weight: 600 !important;
 }}
 
-/* Nút bấm Tạo đơn nổi bật */
 div.stButton > button[kind="primary"] {{
     border-radius: 12px !important;
     padding: 12px 20px !important;
@@ -184,14 +225,25 @@ div.stButton > button[kind="primary"] {{
 
 def banner(title, subtitle=None, highlight_text=None):
     sub_html = f'<div class="sub-title">{subtitle}</div>' if subtitle else ""
-    main_title = highlight_text if highlight_text else title
-    st.markdown(f"""
-    <div class="vifex-banner">
-        <div class="brand-tag">VIFEX</div>
-        {sub_html}
-        <div class="main-title">{main_title}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    main_text = highlight_text if highlight_text else title
+    logo_b64 = get_logo_base64()
+    
+    if logo_b64:
+        logo_html = f'<div class="vifex-banner-logo"><img src="data:image/png;base64,{logo_b64}" alt="VIFEX Logo" /></div>'
+    else:
+        logo_html = '<div class="vifex-banner-logo" style="font-weight:800;color:#15503F;font-size:11px;">VIFEX</div>'
+
+    html_code = (
+        f'<div class="vifex-banner">'
+        f'<div class="vifex-banner-left">'
+        f'<div class="brand-tag">VIFEX</div>'
+        f'{sub_html}'
+        f'<div class="main-title">{main_text}</div>'
+        f'</div>'
+        f'{logo_html}'
+        f'</div>'
+    )
+    st.markdown(html_code, unsafe_allow_html=True)
 
 
 def status_badge_html(status):
@@ -568,7 +620,7 @@ def render_order_detail(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# 1. TRANG CHỦ (THEO MẪU MOBILE GIAO DIỆN MẪU 1)
+# 1. TRANG CHỦ
 # ---------------------------------------------------------------------------
 if nav == "🏠 Trang chủ":
     pending = don_hang_df[don_hang_df["Trang_thai"].isin(["Gửi kho", "Đang giao hàng"])] if not don_hang_df.empty else pd.DataFrame()
@@ -625,7 +677,7 @@ if nav == "🏠 Trang chủ":
         render_order_detail(st.session_state.selected_order)
 
 # ---------------------------------------------------------------------------
-# 2. DANH SÁCH ĐƠN HÀNG (THEO MẪU MOBILE GIAO DIỆN MẪU 2)
+# 2. DANH SÁCH ĐƠN HÀNG
 # ---------------------------------------------------------------------------
 elif nav == "📦 Đơn hàng":
     banner("Danh sách đơn hàng")
@@ -662,7 +714,7 @@ elif nav == "📦 Đơn hàng":
         render_order_detail(st.session_state.selected_order)
 
 # ---------------------------------------------------------------------------
-# 3. LÊN ĐƠN HÀNG (TỐI ƯU GIAO DIỆN CARD CHO MOBILE)
+# 3. LÊN ĐƠN HÀNG
 # ---------------------------------------------------------------------------
 elif nav == "➕ Lên đơn":
     banner("Lên đơn hàng")
@@ -814,7 +866,7 @@ elif nav == "💰 Lương Sale":
             st.dataframe(by_sp, hide_index=True, use_container_width=True)
 
 # ---------------------------------------------------------------------------
-# 5. DASHBOARD TỔNG QUAN (THEO MẪU MOBILE GIAO DIỆN MẪU 3)
+# 5. DASHBOARD TỔNG QUAN
 # ---------------------------------------------------------------------------
 elif nav == "📊 Dashboard":
     banner("Tổng quan")
