@@ -548,9 +548,11 @@ elif nav == "📦 Đơn hàng":
 # Lên đơn
 # ---------------------------------------------------------------------------
 elif nav == "➕ Lên đơn":
-    banner("Lên đơn hàng")
+        banner("Lên đơn hàng")
 
-    with st.form("form_don_hang"):
+    n_dong = st.number_input("Số dòng sản phẩm", min_value=1, max_value=20, value=1, step=1)
+
+    with st.form("form_don_hang", clear_on_submit=True):
         ten_npp = st.selectbox("Khách hàng (NPP)", khach_hang_df["Ten_NPP"].tolist())
         kh_row = khach_hang_df[khach_hang_df["Ten_NPP"] == ten_npp].iloc[0]
         ma_kh = kh_row["Ma_KH"]
@@ -561,7 +563,7 @@ elif nav == "➕ Lên đơn":
         ghi_chu_tt = st.text_input("Ghi chú thanh toán", "")
 
         st.markdown("**Danh sách sản phẩm trong đơn**")
-        n_dong = st.number_input("Số dòng sản phẩm", min_value=1, max_value=20, value=1, step=1)
+
 
         line_items = []
         ten_sp_list = san_pham_df["Ten_SP"].tolist()
