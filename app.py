@@ -358,6 +358,10 @@ if "selected_order" not in st.session_state:
 if "nav" not in st.session_state:
     st.session_state.nav = "🏠 Trang chủ"
 
+# Khởi tạo số dòng sản phẩm trong session_state
+if "order_items_count" not in st.session_state:
+    st.session_state.order_items_count = 1
+
 # ---------------------------------------------------------------------------
 # Điều hướng — dùng container có key thật để CSS áp đúng phạm vi
 # ---------------------------------------------------------------------------
@@ -537,8 +541,6 @@ elif nav == "📦 Đơn hàng":
 elif nav == "➕ Lên đơn":
     banner("Lên đơn hàng")
 
-    n_dong = st.number_input("Số dòng sản phẩm", min_value=1, max_value=20, value=1, step=1)
-
     ten_npp = st.selectbox("Khách hàng (NPP)", khach_hang_df["Ten_NPP"].dropna().tolist())
     kh_matches = khach_hang_df[khach_hang_df["Ten_NPP"] == ten_npp]
     kh_row = kh_matches.iloc[0] if not kh_matches.empty else {}
@@ -556,7 +558,7 @@ elif nav == "➕ Lên đơn":
 
         line_items = []
         ten_sp_list = san_pham_df["Ten_SP"].dropna().tolist()
-        for i in range(int(n_dong)):
+        for i in range(st.session_state.order_items_count):
             c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
             with c1:
                 ten_sp = st.selectbox(f"Sản phẩm #{i+1}", ten_sp_list, key=f"sp_{i}")
@@ -569,6 +571,18 @@ elif nav == "➕ Lên đơn":
             line_items.append((ten_sp, sl_dat, tang, chiet_khau))
 
         submitted = st.form_submit_button("✅ Tạo đơn hàng", use_container_width=True, type="primary")
+
+    # Các nút Thêm sản phẩm và Bớt dòng sản phẩm
+    col_add, col_remove, _ = st.columns([2, 2, 4])
+    with col_add:
+        if st.button("➕ Thêm sản phẩm", key="btn_add_product", use_container_width=True):
+            st.session_state.order_items_count += 1
+            st.rerun()
+    with col_remove:
+        if st.session_state.order_items_count > 1:
+            if st.button("➖ Bớt sản phẩm", key="btn_remove_product", use_container_width=True):
+                st.session_state.order_items_count -= 1
+                st.rerun()
 
     if submitted:
         valid_items = [li for li in line_items if li[1] > 0]
@@ -598,6 +612,8 @@ elif nav == "➕ Lên đơn":
                 thanh_tien, sl_dat + tang, "Lên đơn", ngay_len_don.month, ngay_len_don.year
             ], value_input_option="USER_ENTERED")
 
+        # Đặt lại số dòng sản phẩm về 1 sau khi tạo đơn thành công
+        st.session_state.order_items_count = 1
         refresh()
         st.success(f"Đã tạo đơn **{ma_don}** — tổng giá trị: {money(tong_tien)}")
         st.balloons()
