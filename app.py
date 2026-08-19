@@ -33,6 +33,12 @@ VALID_STATUSES = ["Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa T
 VAT_FOLDER_ID = "1HZiL99pNqV31u6Z8q5EqeoyjFJkPJFji"
 DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLfDcPZIs2QEshLL_uYSQ6-N4CnSbJhmorx3EI_28QZGd1EnNUEF9yrzh3Zx8M3bgqNw/exec"
 
+def safe_str(v):
+    if v is None or pd.isna(v):
+        return ""
+    s = str(v).strip()
+    return "" if s.lower() == "nan" else s
+
 # ---------------------------------------------------------------------------
 # HÀM LOAD ẢNH LOGO DƯỚI DẠNG BASE64
 # ---------------------------------------------------------------------------
@@ -593,7 +599,7 @@ def draw_bold(draw, pos, text, font, fill):
 def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     W = 860
     row_h = 34
-    header_h = 270
+    header_h = 280
     footer_h = 90
     H = header_h + row_h * (len(items_df) + 2) + footer_h
 
@@ -610,18 +616,18 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     d.text((24, 50), "PHIẾU XUẤT ĐƠN HÀNG (không phải hóa đơn VAT)", font=f_sub, fill="white")
 
     y = 100
-    ten_cty = khach_hang_row.get("Ten_cong_ty_GPKD") or khach_hang_row.get("Ten_cong_ty") or khach_hang_row.get("Ten_GPKD") or khach_hang_row.get("Ten_NPP", "")
-    ten_npp = khach_hang_row.get("Ten_NPP", "")
-    dia_chi = khach_hang_row.get("Dia_chi_giao_phu") or khach_hang_row.get("Dia_chi_GPKD", "")
-    sdt = khach_hang_row.get("SDT_phu", "")
+    ten_cty = safe_str(khach_hang_row.get("Ten_cong_ty_GPKD")) or safe_str(khach_hang_row.get("Ten_NPP"))
+    ten_npp = safe_str(khach_hang_row.get("Ten_NPP"))
+    dia_chi_giao = safe_str(khach_hang_row.get("Dia_chi_giao_phu")) or safe_str(khach_hang_row.get("Dia_chi_GPKD"))
+    sdt = safe_str(khach_hang_row.get("SDT_phu"))
 
     draw_bold(d, (24, y), f"Mã đơn: {ma_don}", f_h, "black"); y += 26
     d.text((24, y), f"Ngày lên đơn: {order_row.get('Ngay_len_don')}", font=f_n, fill="black"); y += 24
     d.text((24, y), f"Khách hàng: {ten_cty}", font=f_n, fill="black"); y += 24
     if ten_npp:
         d.text((24, y), f"NHÀ PHÂN PHỐI : {ten_npp}", font=f_n, fill="black"); y += 24
-    if dia_chi:
-        d.text((24, y), f"Địa chỉ giao: {dia_chi}", font=f_n, fill="black"); y += 24
+    if dia_chi_giao:
+        d.text((24, y), f"Địa chỉ giao: {dia_chi_giao}", font=f_n, fill="black"); y += 24
     if sdt:
         d.text((24, y), f"SĐT: {sdt}", font=f_n, fill="black"); y += 24
     y += 10
@@ -740,8 +746,8 @@ def render_order_detail(ma_don):
     items = ctdh_df[ctdh_df["Ma_don"] == ma_don].copy()
     items = items.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
 
-    ten_cty = kh_row.get("Ten_cong_ty_GPKD") or kh_row.get("Ten_cong_ty") or kh_row.get("Ten_GPKD") or kh_row.get("Ten_NPP", "")
-    ten_npp = kh_row.get("Ten_NPP", "")
+    ten_cty = safe_str(kh_row.get("Ten_cong_ty_GPKD")) or safe_str(kh_row.get("Ten_NPP"))
+    ten_npp = safe_str(kh_row.get("Ten_NPP"))
 
     with st.container(border=True):
         st.markdown(f"#### Chi tiết đơn: `{ma_don}`")
