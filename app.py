@@ -467,14 +467,19 @@ def update_order_status(ma_don, new_status):
 
 
 # ---------------------------------------------------------------------------
-# XỬ LÝ LƯU TRỮ HÓA ĐƠN VAT TRỰC TIẾP LÊN GOOGLE DRIVE
+# XỬ LÝ LƯU TRỮ HÓA ĐƠN VAT TRỰC TIẾP LÊN GOOGLE DRIVE (FIX RESUMABLE ERROR)
 # ---------------------------------------------------------------------------
 def find_vat_invoice_on_drive(ma_don):
     """Tìm xem trên thư mục Drive đã có file hóa đơn của mã đơn này chưa."""
     drive = get_drive_service()
     query = f"'{VAT_FOLDER_ID}' in parents and name contains '{ma_don}' and trashed = false"
     try:
-        results = drive.files().list(q=query, fields="files(id, name, mimeType, webViewLink)").execute()
+        results = drive.files().list(
+            q=query, 
+            fields="files(id, name, mimeType, webViewLink)",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True
+        ).execute()
         files = results.get("files", [])
         if files:
             return files[0]
@@ -484,7 +489,7 @@ def find_vat_invoice_on_drive(ma_don):
 
 
 def upload_vat_invoice_to_drive(ma_don, uploaded_file):
-    """Tải file PDF/ảnh hóa đơn lên trực tiếp thư mục Google Drive."""
+    """Tải file PDF/ảnh hóa đơn lên trực tiếp thư mục Google Drive (One-shot Direct Upload)."""
     drive = get_drive_service()
     _, ext = os.path.splitext(uploaded_file.name)
     file_name = f"{ma_don}_VAT{ext.lower()}"
@@ -493,7 +498,7 @@ def upload_vat_invoice_to_drive(ma_don, uploaded_file):
     existing = find_vat_invoice_on_drive(ma_don)
     if existing:
         try:
-            drive.files().delete(fileId=existing["id"]).execute()
+            drive.files().delete(fileId=existing["id"], supportsAllDrives=True).execute()
         except Exception:
             pass
 
@@ -501,15 +506,29 @@ def upload_vat_invoice_to_drive(ma_don, uploaded_file):
         "name": file_name,
         "parents": [VAT_FOLDER_ID]
     }
-    media = MediaIoBaseUpload(io.BytesIO(uploaded_file.getbuffer()), mimetype=uploaded_file.type, resumable=True)
-    file = drive.files().create(body=file_metadata, media_body=media, fields="id, name, webViewLink").execute()
+    
+    mime_type = uploaded_file.type if uploaded_file.type else "application/octet-stream"
+    
+    # Dùng resumable=False để truyền dữ liệu trực tiếp 1 lần, tránh ngắt kết nối stream
+    media = MediaIoBaseUpload(
+        io.BytesIO(uploaded_file.getvalue()), 
+        mimetype=mime_type, 
+        resumable=False
+    )
+    
+    file = drive.files().create(
+        body=file_metadata, 
+        media_body=media, 
+        fields="id, name, webViewLink",
+        supportsAllDrives=True
+    ).execute()
     return file
 
 
 def download_vat_invoice_from_drive(file_id):
     """Tải nội dung byte của file từ Google Drive về để người dùng xem/tải trực tiếp."""
     drive = get_drive_service()
-    request = drive.files().get_media(fileId=file_id)
+    request = drive.files().get_media(fileId=file_id, supportsAllDrives=True)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
