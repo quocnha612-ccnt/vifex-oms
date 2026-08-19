@@ -967,7 +967,6 @@ if nav == "🏠 Trang chủ":
                         st.session_state.selected_order = None if is_expanded else r["Ma_don"]
                         st.rerun()
 
-            # HIỂN THỊ CHI TIẾT NGAY BÊN DƯỚI ĐƠN HÀNG ĐÓ
             if is_expanded:
                 render_order_detail_inline(r["Ma_don"])
 
@@ -988,7 +987,6 @@ elif nav == "📦 Đơn hàng":
     if filter_status != "Tất cả":
         view_df = view_df[view_df["Trang_thai"] == filter_status]
     
-    # Sắp xếp đơn hàng mới nhất lên trên cùng theo mã đơn DH...
     view_df = view_df.sort_values("Ma_don", ascending=False)
 
     st.write("")
@@ -1018,7 +1016,6 @@ elif nav == "📦 Đơn hàng":
                     st.session_state.selected_order = None if is_expanded else r["Ma_don"]
                     st.rerun()
 
-        # HIỂN THỊ CHI TIẾT NGAY BÊN DƯỚI ĐƠN HÀNG ĐÓ
         if is_expanded:
             render_order_detail_inline(r["Ma_don"])
 
@@ -1037,7 +1034,6 @@ elif nav == "➕ Lên đơn":
 
     st.caption(f"Sale phụ trách: **{sale_pt}**")
 
-    # Hiển thị thông báo nếu vừa tạo đơn thành công
     if "just_created_order" in st.session_state:
         msg, money_val = st.session_state.just_created_order
         st.success(f"Đã tạo đơn **{msg}** — tổng giá trị: **{money(money_val)}**")
@@ -1099,7 +1095,6 @@ elif nav == "➕ Lên đơn":
         ctdh_ws = get_ws("Chi_tiet_don_hang")
         ma_don = next_code(don_hang_ws, 1, "DH", 5)
 
-        # Chuyển đổi tất cả dữ liệu sang chuỗi và số nguyên/thực thuần túy
         don_hang_row_data = [
             str(ma_don),
             str(ngay_len_don.strftime("%Y-%m-%d")),
@@ -1142,7 +1137,6 @@ elif nav == "➕ Lên đơn":
             ]
             ctdh_ws.append_row(ctdh_row_data, value_input_option="USER_ENTERED")
 
-        # Reset form về trạng thái trống ban đầu
         st.session_state.order_items_count = 1
         st.session_state.order_form_version += 1
         st.session_state.just_created_order = (ma_don, tong_tien)
@@ -1150,7 +1144,7 @@ elif nav == "➕ Lên đơn":
         st.rerun()
 
 # ---------------------------------------------------------------------------
-# 4. LƯƠNG SALE
+# 4. LƯƠNG SALE (TỰ ĐỘNG CỘNG THÊM 1% HOA HỒNG TỪ SALE TÂN CHO SALE ĐẠT)
 # ---------------------------------------------------------------------------
 elif nav == "💰 Lương Sale":
     banner("Doanh số & Lương Sale")
@@ -1179,22 +1173,56 @@ elif nav == "💰 Lương Sale":
 
         doanh_thu = of_sale["Thanh_tien"].sum()
         doanh_thu_sau_vat = doanh_thu * (1 - 0.08)
-        luong = doanh_thu_sau_vat * ty_le_hh
+        luong_co_ban = doanh_thu_sau_vat * ty_le_hh
+
+        # Kiểm tra nếu là Sale Đạt -> Tìm dữ liệu của Sale Tân để cộng 1%
+        is_dat = any(kw in str(ten_nv).lower() for kw in ["đạt", "dat"])
+        thuong_tan = 0
+        doanh_thu_tan_sau_vat = 0
+        ten_nv_tan = ""
+
+        if is_dat:
+            tan_rows = nhan_vien_df[nhan_vien_df["Ten_NV"].str.lower().str.contains("tân|tan", na=False)]
+            if not tan_rows.empty:
+                ma_tan = tan_rows.iloc[0]["Ma_NV"]
+                ten_nv_tan = tan_rows.iloc[0]["Ten_NV"]
+                of_tan = valid[(valid["Sale_phu_trach"] == ma_tan) &
+                               (valid["Ngay_len_don"].dt.month == thang) &
+                               (valid["Ngay_len_don"].dt.year == nam)]
+                doanh_thu_tan = of_tan["Thanh_tien"].sum()
+                doanh_thu_tan_sau_vat = doanh_thu_tan * (1 - 0.08)
+                thuong_tan = doanh_thu_tan_sau_vat * 0.01
+
+        luong_tong = luong_co_ban + thuong_tan
 
         st.caption("Tính theo tất cả các đơn hàng đã duyệt xuất kho trở đi (ngoại trừ trạng thái 'Lên đơn').")
 
-        c1, c2 = st.columns(2)
-        c1.markdown(f"""<div class="metric-box"><div class="metric-label">Doanh thu hợp lệ</div>
-            <div class="metric-value" style="color:{GREEN}">{money(doanh_thu)}</div></div>""", unsafe_allow_html=True)
-        c2.markdown(f"""<div class="metric-box"><div class="metric-label">Sau trừ VAT 8%</div>
-            <div class="metric-value">{money(doanh_thu_sau_vat)}</div></div>""", unsafe_allow_html=True)
-        
-        st.write("")
-        c3, c4 = st.columns(2)
-        c3.markdown(f"""<div class="metric-box"><div class="metric-label">Tỷ lệ hoa hồng</div>
-            <div class="metric-value">{ty_le_hh*100:.1f}%</div></div>""", unsafe_allow_html=True)
-        c4.markdown(f"""<div class="metric-box"><div class="metric-label">Lương thực nhận</div>
-            <div class="metric-value" style="color:{RED}">{money(luong)}</div></div>""", unsafe_allow_html=True)
+        if is_dat and thuong_tan > 0:
+            c1, c2 = st.columns(2)
+            c1.markdown(f"""<div class="metric-box"><div class="metric-label">Doanh thu cá nhân (sau VAT)</div>
+                <div class="metric-value" style="color:{GREEN}">{money(doanh_thu_sau_vat)}</div></div>""", unsafe_allow_html=True)
+            c2.markdown(f"""<div class="metric-box"><div class="metric-label">Hoa hồng cá nhân ({ty_le_hh*100:.1f}%)</div>
+                <div class="metric-value">{money(luong_co_ban)}</div></div>""", unsafe_allow_html=True)
+            
+            st.write("")
+            c3, c4 = st.columns(2)
+            c3.markdown(f"""<div class="metric-box"><div class="metric-label">+ 1% Doanh thu {ten_nv_tan}</div>
+                <div class="metric-value" style="color:{AMBER}">+{money(thuong_tan)}</div></div>""", unsafe_allow_html=True)
+            c4.markdown(f"""<div class="metric-box"><div class="metric-label">Tổng lương thực nhận</div>
+                <div class="metric-value" style="color:{RED}">{money(luong_tong)}</div></div>""", unsafe_allow_html=True)
+        else:
+            c1, c2 = st.columns(2)
+            c1.markdown(f"""<div class="metric-box"><div class="metric-label">Doanh thu hợp lệ</div>
+                <div class="metric-value" style="color:{GREEN}">{money(doanh_thu)}</div></div>""", unsafe_allow_html=True)
+            c2.markdown(f"""<div class="metric-box"><div class="metric-label">Sau trừ VAT 8%</div>
+                <div class="metric-value">{money(doanh_thu_sau_vat)}</div></div>""", unsafe_allow_html=True)
+            
+            st.write("")
+            c3, c4 = st.columns(2)
+            c3.markdown(f"""<div class="metric-box"><div class="metric-label">Tỷ lệ hoa hồng</div>
+                <div class="metric-value">{ty_le_hh*100:.1f}%</div></div>""", unsafe_allow_html=True)
+            c4.markdown(f"""<div class="metric-box"><div class="metric-label">Lương thực nhận</div>
+                <div class="metric-value" style="color:{RED}">{money(luong_tong)}</div></div>""", unsafe_allow_html=True)
 
         st.write("")
         st.markdown(f"#### 📋 Doanh số theo Nhà phân phối & Nhóm hàng (Tháng {thang}/{nam})")
