@@ -573,7 +573,7 @@ def delete_vat_record(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# Ảnh phiếu xuất đơn hàng
+# Ảnh phiếu xuất đơn hàng (HỖ TRỢ XUỐNG DÒNG TỰ ĐỘNG KHÔNG BỊ ĐÈ CHỮ)
 # ---------------------------------------------------------------------------
 @st.cache_resource
 def get_font(size):
@@ -596,20 +596,46 @@ def draw_bold(draw, pos, text, font, fill):
     draw.text((x + 0.6, y), text, font=font, fill=fill)
 
 
+def draw_wrapped_text(d, pos, text, font, fill, max_width, line_spacing=6):
+    x, y = pos
+    words = text.split(" ")
+    lines = []
+    curr = ""
+    for w in words:
+        test = (curr + " " + w).strip()
+        bbox = d.textbbox((0, 0), test, font=font)
+        w_px = bbox[2] - bbox[0]
+        if w_px <= max_width:
+            curr = test
+        else:
+            if curr:
+                lines.append(curr)
+            curr = w
+    if curr:
+        lines.append(curr)
+    
+    for line in lines:
+        d.text((x, y), line, font=font, fill=fill)
+        bbox = d.textbbox((0, 0), line, font=font)
+        h_px = bbox[3] - bbox[1]
+        y += h_px + line_spacing
+    return y
+
+
 def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     W = 860
     row_h = 34
-    header_h = 280
-    footer_h = 90
-    H = header_h + row_h * (len(items_df) + 2) + footer_h
-
-    img = Image.new("RGB", (W, H), "white")
-    d = ImageDraw.Draw(img)
-
+    
     f_title = get_font(26)
     f_sub = get_font(14)
     f_h = get_font(16)
     f_n = get_font(14)
+
+    # Ước lượng chiều cao tổng để vẽ ảnh vừa khít không bị đè
+    H = 450 + row_h * (len(items_df) + 2) + 120
+
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
 
     d.rectangle([0, 0, W, 80], fill=GREEN)
     draw_bold(d, (24, 16), "VIFEX", f_title, "white")
@@ -623,15 +649,17 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
 
     draw_bold(d, (24, y), f"Mã đơn: {ma_don}", f_h, "black"); y += 26
     d.text((24, y), f"Ngày lên đơn: {order_row.get('Ngay_len_don')}", font=f_n, fill="black"); y += 24
-    d.text((24, y), f"Khách hàng: {ten_cty}", font=f_n, fill="black"); y += 24
+    
+    if ten_cty:
+        y = draw_wrapped_text(d, (24, y), f"Khách hàng: {ten_cty}", f_n, "black", max_width=810)
     if ten_npp:
-        d.text((24, y), f"NHÀ PHÂN PHỐI : {ten_npp}", font=f_n, fill="black"); y += 24
+        y = draw_wrapped_text(d, (24, y), f"NHÀ PHÂN PHỐI : {ten_npp}", f_n, "black", max_width=810)
     if dia_chi_giao:
-        d.text((24, y), f"Địa chỉ giao: {dia_chi_giao}", font=f_n, fill="black"); y += 24
+        y = draw_wrapped_text(d, (24, y), f"Địa chỉ giao: {dia_chi_giao}", f_n, "black", max_width=810)
     if sdt:
-        d.text((24, y), f"SĐT: {sdt}", font=f_n, fill="black"); y += 24
-    y += 10
-
+        d.text((24, y), f"SĐT người nhận: {sdt}", font=f_n, fill="black"); y += 24
+    
+    y += 8
     d.line([24, y, W - 24, y], fill="#ddd", width=1); y += 10
     cols_x = [24, 270, 370, 440, 520, 640, 750]
     headers = ["Sản phẩm", "Đơn giá", "SL đặt", "Tặng", "Tổng tiền", "Chiết khấu", "Thành tiền"]
@@ -661,12 +689,17 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
 
     d.text((24, y), f"Hình thức thanh toán: {order_row.get('Hinh_thuc_thanh_toan', '')}", font=f_n, fill="black")
     y += 22
-    ghi_chu = order_row.get("Ghi_chu_thanh_toan", "")
+    
+    ghi_chu = safe_str(order_row.get("Ghi_chu_thanh_toan"))
     if ghi_chu:
-        d.text((24, y), f"Ghi chú: {ghi_chu}", font=f_n, fill="black")
+        y = draw_wrapped_text(d, (24, y), f"Ghi chú: {ghi_chu}", f_n, "black", max_width=810)
+
+    # Cắt gọn phần chiều cao thừa bên dưới
+    final_h = max(y + 30, 300)
+    cropped_img = img.crop((0, 0, W, final_h))
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    cropped_img.save(buf, format="PNG")
     return buf.getvalue()
 
 
@@ -756,7 +789,7 @@ def render_order_detail(ma_don):
         st.write(f"**NHÀ PHÂN PHỐI :** {ten_npp}")
         st.write(f"**Ngày lên đơn:** {order_row['Ngay_len_don']}")
         st.write(f"**Hình thức thanh toán:** {order_row['Hinh_thuc_thanh_toan']}")
-        if order_row.get("Ghi_chu_thanh_toan"):
+        if safe_str(order_row.get("Ghi_chu_thanh_toan")):
             st.write(f"**Ghi chú:** {order_row['Ghi_chu_thanh_toan']}")
 
         st.markdown("---")
@@ -809,7 +842,7 @@ def render_order_detail(ma_don):
             else:
                 st.button("☁️ Hóa đơn (Chưa có)", disabled=True, use_container_width=True)
 
-        # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG) - DÙNG use_container_width CHUẨN
+        # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG)
         if st.session_state.get(f"show_preview_{ma_don}", False):
             png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
             with st.container(border=True):
