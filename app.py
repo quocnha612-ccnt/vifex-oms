@@ -31,7 +31,7 @@ ALL_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàn
 VALID_STATUSES = ["Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
 
 VAT_FOLDER_ID = "1HZiL99pNqV31u6Z8q5EqeoyjFJkPJFji"
-DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxowVPuGR6emH1e3dwEUae2JE1bEAte-kz0OvPKTn6PletHcLjrS28UM7a1De9RIiEzFg/exec"
+DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLfDcPZIs2QEshLL_uYSQ6-N4CnSbJhmorx3EI_28QZGd1EnNUEF9yrzh3Zx8M3bgqNw/exec"
 
 # ---------------------------------------------------------------------------
 # HÀM LOAD ẢNH LOGO DƯỚI DẠNG BASE64
@@ -464,13 +464,16 @@ def update_order_status(ma_don, new_status):
 
 
 # ---------------------------------------------------------------------------
-# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE (WEBHOOK APPS SCRIPT)
+# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE (WEBHOOK APPS SCRIPT ĐƯỢC CẬP NHẬT TRỰC TIẾP)
 # ---------------------------------------------------------------------------
 def get_upload_endpoint():
     try:
-        return st.secrets.get("DRIVE_UPLOAD_URL", DEFAULT_SCRIPT_URL).strip()
+        secret_url = st.secrets.get("DRIVE_UPLOAD_URL", "").strip()
+        if secret_url and secret_url.startswith("http"):
+            return secret_url
     except Exception:
-        return DEFAULT_SCRIPT_URL.strip()
+        pass
+    return DEFAULT_SCRIPT_URL
 
 
 def get_vat_sheet():
@@ -512,7 +515,7 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
         "base64Data": b64_data
     }
     
-    # Gửi qua POST data dạng JSON payload
+    # Gửi qua POST data dạng JSON payload và tự động follow redirect 302
     response = requests.post(
         url,
         data=json.dumps(payload),
@@ -524,7 +527,7 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
     try:
         data = response.json()
     except Exception:
-        raise Exception(f"Phản hồi từ Google Apps Script ({response.status_code}): {response.text[:200]}")
+        raise Exception(f"Lỗi kết nối Webhook ({response.status_code}): Link đang gọi là: {url}")
     
     if data.get("status") == "success":
         file_url = data.get("fileUrl")
