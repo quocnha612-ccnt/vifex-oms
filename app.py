@@ -7,12 +7,16 @@ import gspread
 import pandas as pd
 import streamlit as st
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from PIL import Image, ImageDraw, ImageFont
 
 st.set_page_config(page_title="VIFEX - Quản lý đơn hàng", page_icon="📦", layout="centered")
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
-          "https://www.googleapis.com/auth/drive"]
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
 GREEN = "#15503F"
 GREEN_BG = "#E2EDE8"
@@ -23,9 +27,10 @@ AMBER_BG = "#FEF3C7"
 GRAY_BG = "#F3F4F6"
 GRAY_TEXT = "#4B5563"
 
-# Tất cả trạng thái ngoại trừ 'Lên đơn' đều được tính vào doanh số & lương Sale
 ALL_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
 VALID_STATUSES = ["Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
+
+VAT_FOLDER_ID = "1HZiL99pNqV31u6Z8q5EqeoyjFJkPJFji"
 
 # ---------------------------------------------------------------------------
 # HÀM LOAD ẢNH LOGO DƯỚI DẠNG BASE64
@@ -46,17 +51,16 @@ def get_logo_base64():
     return None
 
 # ---------------------------------------------------------------------------
-# CSS RESPONSIVE (MÁY TÍNH RỘNG RÃI - MOBILE DẠNG LƯỚI GRID KHÔNG BỊ DỌC)
+# CSS RESPONSIVE & KHUNG UPLOAD HÓA ĐƠN VAT
 # ---------------------------------------------------------------------------
 st.markdown("""
 <style>
-/* Ẩn header đè của Streamlit */
 header[data-testid="stHeader"] {
     background-color: transparent !important;
     z-index: 1 !important;
 }
 
-/* 1. Desktop / Màn hình rộng */
+/* Desktop */
 .block-container {
     max-width: 960px !important;
     padding-top: 4.5rem !important;
@@ -159,7 +163,6 @@ header[data-testid="stHeader"] {
     font-size: 15px;
 }
 
-/* Badge trạng thái */
 .badge {
     display: inline-block;
     padding: 4px 10px;
@@ -168,7 +171,6 @@ header[data-testid="stHeader"] {
     font-weight: 600;
 }
 
-/* Metric Box */
 .metric-box {
     background: #ffffff;
     border: 1px solid #edf0ed;
@@ -195,7 +197,6 @@ header[data-testid="stHeader"] {
     margin-bottom: 8px;
 }
 
-/* Thanh điều hướng Tab Desktop */
 div[class*="st-key-vifex_nav"] {
     margin-bottom: 16px;
 }
@@ -220,7 +221,7 @@ div.stButton > button[kind="primary"] {
     font-weight: 600 !important;
 }
 
-/* 2. Mobile (Dạng lưới Grid 3 cột x 2 hàng không bị xếp dọc) */
+/* 2. Mobile */
 @media screen and (max-width: 768px) {
     .block-container {
         max-width: 100% !important;
@@ -311,15 +312,21 @@ def money(v):
 
 
 # ---------------------------------------------------------------------------
-# Kết nối Google Sheets
+# Kết nối Google Sheets & Google Drive API
 # ---------------------------------------------------------------------------
 @st.cache_resource
-def get_client():
-    creds = Credentials.from_service_account_info(
+def get_credentials():
+    return Credentials.from_service_account_info(
         st.secrets["gcp_service_account"], scopes=SCOPES
     )
-    return gspread.authorize(creds)
 
+@st.cache_resource
+def get_client():
+    return gspread.authorize(get_credentials())
+
+@st.cache_resource
+def get_drive_service():
+    return build("drive", "v3", credentials=get_credentials())
 
 @st.cache_resource
 def get_spreadsheet():
@@ -456,6 +463,58 @@ def update_order_status(ma_don, new_status):
         if v == ma_don:
             ctdh_ws.update_cell(i, 10, new_status)            # J: Trang_thai_don
     refresh()
+
+
+# ---------------------------------------------------------------------------
+# XỬ LÝ LƯU TRỮ HÓA ĐƠN VAT TRỰC TIẾP LÊN GOOGLE DRIVE
+# ---------------------------------------------------------------------------
+def find_vat_invoice_on_drive(ma_don):
+    """Tìm xem trên thư mục Drive đã có file hóa đơn của mã đơn này chưa."""
+    drive = get_drive_service()
+    query = f"'{VAT_FOLDER_ID}' in parents and name contains '{ma_don}' and trashed = false"
+    try:
+        results = drive.files().list(q=query, fields="files(id, name, mimeType, webViewLink)").execute()
+        files = results.get("files", [])
+        if files:
+            return files[0]
+    except Exception:
+        pass
+    return None
+
+
+def upload_vat_invoice_to_drive(ma_don, uploaded_file):
+    """Tải file PDF/ảnh hóa đơn lên trực tiếp thư mục Google Drive."""
+    drive = get_drive_service()
+    _, ext = os.path.splitext(uploaded_file.name)
+    file_name = f"{ma_don}_VAT{ext.lower()}"
+    
+    # Kiểm tra nếu đã có file cũ thì xóa để ghi đè file mới
+    existing = find_vat_invoice_on_drive(ma_don)
+    if existing:
+        try:
+            drive.files().delete(fileId=existing["id"]).execute()
+        except Exception:
+            pass
+
+    file_metadata = {
+        "name": file_name,
+        "parents": [VAT_FOLDER_ID]
+    }
+    media = MediaIoBaseUpload(io.BytesIO(uploaded_file.getbuffer()), mimetype=uploaded_file.type, resumable=True)
+    file = drive.files().create(body=file_metadata, media_body=media, fields="id, name, webViewLink").execute()
+    return file
+
+
+def download_vat_invoice_from_drive(file_id):
+    """Tải nội dung byte của file từ Google Drive về để người dùng xem/tải trực tiếp."""
+    drive = get_drive_service()
+    request = drive.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    return fh.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -648,7 +707,8 @@ def render_order_detail(ma_don):
                                    if order_row["Trang_thai"] in ALL_STATUSES else 0,
                                    key=f"status_{ma_don}")
         
-        c1, c2 = st.columns(2)
+        # 3 CỘT NÚT HÀNH ĐỘNG
+        c1, c2, c3 = st.columns(3)
         with c1:
             if st.button("💾 Lưu trạng thái", key=f"save_status_{ma_don}", type="primary", use_container_width=True):
                 update_order_status(ma_don, new_status)
@@ -659,7 +719,35 @@ def render_order_detail(ma_don):
             st.download_button("📥 Phiếu xuất (PNG)", data=png_bytes,
                                 file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
                                 key=f"dl_{ma_don}", use_container_width=True)
+        with c3:
+            drive_vat_file = find_vat_invoice_on_drive(ma_don)
+            if drive_vat_file:
+                vat_bytes = download_vat_invoice_from_drive(drive_vat_file["id"])
+                file_ext = os.path.splitext(drive_vat_file["name"])[1]
+                mime_t = "application/pdf" if file_ext.lower() == ".pdf" else f"image/{file_ext.lower().replace('.', '')}"
+                st.download_button("📄 Tải VAT (Drive)", data=vat_bytes,
+                                    file_name=drive_vat_file["name"], mime=mime_t,
+                                    key=f"dl_vat_{ma_don}", use_container_width=True)
+            else:
+                st.button("☁️ Hóa đơn (Chưa có)", disabled=True, use_container_width=True)
 
+        # KHU VỰC TẢI LÊN LƯU TRỰC TIẾP LÊN GOOGLE DRIVE
+        with st.expander("☁️ **Tải lên Hóa đơn VAT lên Google Drive (PDF, PNG, JPG)**", expanded=False):
+            st.caption("Tệp tải lên sẽ được tự động lưu vĩnh viễn vào thư mục Google Drive **Hoa_Don_VAT_VIFEX**.")
+            uploaded_vat = st.file_uploader(
+                f"Chọn tệp hóa đơn cho đơn {ma_don}", 
+                type=["pdf", "png", "jpg", "jpeg"], 
+                key=f"vat_uploader_{ma_don}",
+                label_visibility="collapsed"
+            )
+            if uploaded_vat is not None:
+                if st.button("⬆️ Tải lên Google Drive", key=f"btn_save_vat_{ma_don}", type="primary"):
+                    with st.spinner("Đang tải tệp lên Google Drive..."):
+                        uploaded_res = upload_vat_invoice_to_drive(ma_don, uploaded_vat)
+                        st.success(f"Đã lưu thành công hóa đơn VAT lên Google Drive cho đơn **{ma_don}**!")
+                        st.rerun()
+
+        st.write("")
         if st.button("← Đóng xem chi tiết", key=f"close_{ma_don}", use_container_width=True):
             st.session_state.selected_order = None
             st.rerun()
@@ -781,7 +869,7 @@ elif nav == "➕ Lên đơn":
         
         ghi_chu_tt = st.text_input("Ghi chú thanh toán", "")
 
-        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:12px 0 8px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin-12px 0 8px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
 
         line_items = []
         ten_sp_list = san_pham_df["Ten_SP"].dropna().tolist()
@@ -850,7 +938,7 @@ elif nav == "➕ Lên đơn":
         st.balloons()
 
 # ---------------------------------------------------------------------------
-# 4. LƯƠNG SALE (BỔ SUNG BẢNG THỐNG KÊ THEO NPP & NHÓM DANH MỤC)
+# 4. LƯƠNG SALE
 # ---------------------------------------------------------------------------
 elif nav == "💰 Lương Sale":
     banner("Doanh số & Lương Sale")
@@ -871,7 +959,6 @@ elif nav == "💰 Lương Sale":
         ma_nv = nv_row["Ma_NV"]
         ty_le_hh = float(nv_row.get("Ty_le_hoa_hong") or 0.02)
 
-        # Tính doanh số theo các trạng thái hợp lệ (Gửi kho, Đang giao hàng, Đã nhận hàng, Chưa Thanh toán)
         valid = merged[merged["Trang_thai"].isin(VALID_STATUSES)].copy()
         valid["Ngay_len_don"] = pd.to_datetime(valid["Ngay_len_don"], errors="coerce")
         of_sale = valid[(valid["Sale_phu_trach"] == ma_nv) &
@@ -902,20 +989,15 @@ elif nav == "💰 Lương Sale":
         if of_sale.empty:
             st.caption("Chưa có đơn hợp lệ nào trong tháng này.")
         else:
-            # 1. Ghép nối lấy Tên NPP và Nhóm danh mục
             df_nhom = of_sale.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
             df_nhom = df_nhom.merge(san_pham_df[["Ma_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
-            
-            # Điền mặc định nếu thiếu nhóm
             df_nhom["Nhom_danh_muc"] = df_nhom["Nhom_danh_muc"].fillna("Khác")
 
-            # 2. Gom nhóm theo NPP và Nhóm hàng
             by_npp = df_nhom.groupby(["Ten_NPP", "Nhom_danh_muc"]).agg(
                 San_luong=("San_luong_xuat_kho", "sum"),
                 Doanh_thu=("Thanh_tien", "sum"),
             ).reset_index().sort_values(["Ten_NPP", "Doanh_thu"], ascending=[True, False])
 
-            # 3. Định dạng hiển thị
             by_npp["Doanh_thu"] = by_npp["Doanh_thu"].apply(money)
             by_npp.columns = ["Nhà phân phối (NPP)", "Nhóm danh mục", "Sản lượng (Thùng)", "Doanh thu"]
             st.dataframe(by_npp, hide_index=True, use_container_width=True)
