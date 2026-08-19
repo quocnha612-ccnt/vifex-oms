@@ -530,7 +530,6 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
     
     if data.get("status") == "success":
         file_url = data.get("fileUrl")
-        # Ghi nhận thời gian chuẩn Việt Nam UTC+7
         try:
             ws = get_vat_sheet()
             rows = ws.col_values(2) # Cột B: Ma_don
@@ -592,9 +591,9 @@ def draw_bold(draw, pos, text, font, fill):
 
 
 def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
-    W = 800
+    W = 860
     row_h = 34
-    header_h = 260
+    header_h = 270
     footer_h = 90
     H = header_h + row_h * (len(items_df) + 2) + footer_h
 
@@ -604,14 +603,14 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     f_title = get_font(26)
     f_sub = get_font(14)
     f_h = get_font(16)
-    f_n = get_font(15)
+    f_n = get_font(14)
 
     d.rectangle([0, 0, W, 80], fill=GREEN)
     draw_bold(d, (24, 16), "VIFEX", f_title, "white")
     d.text((24, 50), "PHIẾU XUẤT ĐƠN HÀNG (không phải hóa đơn VAT)", font=f_sub, fill="white")
 
     y = 100
-    ten_cty = khach_hang_row.get("Ten_cong_ty") or khach_hang_row.get("Ten_GPKD") or khach_hang_row.get("Ten_NPP", "")
+    ten_cty = khach_hang_row.get("Ten_cong_ty_GPKD") or khach_hang_row.get("Ten_cong_ty") or khach_hang_row.get("Ten_GPKD") or khach_hang_row.get("Ten_NPP", "")
     ten_npp = khach_hang_row.get("Ten_NPP", "")
     dia_chi = khach_hang_row.get("Dia_chi_giao_phu") or khach_hang_row.get("Dia_chi_GPKD", "")
     sdt = khach_hang_row.get("SDT_phu", "")
@@ -619,8 +618,8 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     draw_bold(d, (24, y), f"Mã đơn: {ma_don}", f_h, "black"); y += 26
     d.text((24, y), f"Ngày lên đơn: {order_row.get('Ngay_len_don')}", font=f_n, fill="black"); y += 24
     d.text((24, y), f"Khách hàng: {ten_cty}", font=f_n, fill="black"); y += 24
-    if ten_npp and ten_npp != ten_cty:
-        d.text((24, y), f"NHÀ PHÂN PHỐI: {ten_npp}", font=f_n, fill="black"); y += 24
+    if ten_npp:
+        d.text((24, y), f"NHÀ PHÂN PHỐI : {ten_npp}", font=f_n, fill="black"); y += 24
     if dia_chi:
         d.text((24, y), f"Địa chỉ giao: {dia_chi}", font=f_n, fill="black"); y += 24
     if sdt:
@@ -628,26 +627,30 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     y += 10
 
     d.line([24, y, W - 24, y], fill="#ddd", width=1); y += 10
-    cols_x = [24, 380, 470, 560, 670]
-    headers = ["Sản phẩm", "SL đặt", "Tặng", "Đơn giá", "Thành tiền"]
+    cols_x = [24, 270, 370, 440, 520, 640, 750]
+    headers = ["Sản phẩm", "Đơn giá", "SL đặt", "Tặng", "Tổng tiền", "Chiết khấu", "Thành tiền"]
     for x, h in zip(cols_x, headers):
         draw_bold(d, (x, y), h, f_n, GREEN)
     y += row_h
     d.line([24, y - 6, W - 24, y - 6], fill="#ddd", width=1)
 
-    total = 0
+    total_thanh_tien = 0
     for _, r in items_df.iterrows():
-        total += r["Thanh_tien"]
-        d.text((cols_x[0], y), str(r["Ten_SP"])[:38], font=f_n, fill="black")
-        d.text((cols_x[1], y), str(int(r["SL_dat"])), font=f_n, fill="black")
-        d.text((cols_x[2], y), str(int(r["Tang"])), font=f_n, fill="black")
-        d.text((cols_x[3], y), money(r["Don_gia_ap_dung"]), font=f_n, fill="black")
-        d.text((cols_x[4], y), money(r["Thanh_tien"]), font=f_n, fill="black")
+        tong_tien_hang = float(r["SL_dat"]) * float(r["Don_gia_ap_dung"])
+        total_thanh_tien += r["Thanh_tien"]
+        
+        d.text((cols_x[0], y), str(r["Ten_SP"])[:26], font=f_n, fill="black")
+        d.text((cols_x[1], y), money(r["Don_gia_ap_dung"]), font=f_n, fill="black")
+        d.text((cols_x[2], y), str(int(r["SL_dat"])), font=f_n, fill="black")
+        d.text((cols_x[3], y), str(int(r["Tang"])), font=f_n, fill="black")
+        d.text((cols_x[4], y), money(tong_tien_hang), font=f_n, fill="black")
+        d.text((cols_x[5], y), money(r["Chiet_khau"]), font=f_n, fill="black")
+        d.text((cols_x[6], y), money(r["Thanh_tien"]), font=f_n, fill="black")
         y += row_h
 
     d.line([24, y, W - 24, y], fill="#ddd", width=1); y += 14
-    draw_bold(d, (cols_x[3], y), "TỔNG CỘNG:", f_h, RED)
-    draw_bold(d, (cols_x[4], y), money(total), f_h, RED)
+    draw_bold(d, (cols_x[5], y), "TỔNG CỘNG:", f_h, RED)
+    draw_bold(d, (cols_x[6], y), money(total_thanh_tien), f_h, RED)
     y += 34
 
     d.text((24, y), f"Hình thức thanh toán: {order_row.get('Hinh_thuc_thanh_toan', '')}", font=f_n, fill="black")
@@ -737,7 +740,7 @@ def render_order_detail(ma_don):
     items = ctdh_df[ctdh_df["Ma_don"] == ma_don].copy()
     items = items.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
 
-    ten_cty = kh_row.get("Ten_cong_ty") or kh_row.get("Ten_GPKD") or kh_row.get("Ten_NPP", "")
+    ten_cty = kh_row.get("Ten_cong_ty_GPKD") or kh_row.get("Ten_cong_ty") or kh_row.get("Ten_GPKD") or kh_row.get("Ten_NPP", "")
     ten_npp = kh_row.get("Ten_NPP", "")
 
     with st.container(border=True):
@@ -751,11 +754,20 @@ def render_order_detail(ma_don):
             st.write(f"**Ghi chú:** {order_row['Ghi_chu_thanh_toan']}")
 
         st.markdown("---")
-        show_cols = items[["Ten_SP", "SL_dat", "Tang", "Don_gia_ap_dung", "Chiet_khau", "Thanh_tien"]].copy()
-        show_cols["Don_gia_ap_dung"] = show_cols["Don_gia_ap_dung"].apply(money)
-        show_cols["Chiet_khau"] = show_cols["Chiet_khau"].apply(money)
-        show_cols["Thanh_tien"] = show_cols["Thanh_tien"].apply(money)
-        show_cols.columns = ["Sản phẩm", "SL đặt", "Tặng", "Đơn giá", "Chiết khấu", "Thành tiền"]
+        
+        # Tính cột Tổng tiền hàng trước chiết khấu
+        items["Tong_tien_hang"] = items["SL_dat"] * items["Don_gia_ap_dung"]
+        
+        # Sắp xếp đúng thứ tự: Sản phẩm | Đơn giá | SL đặt | Tặng | Tổng tiền | Chiết khấu | Thành tiền
+        show_cols = pd.DataFrame()
+        show_cols["Sản phẩm"] = items["Ten_SP"]
+        show_cols["Đơn giá"] = items["Don_gia_ap_dung"].apply(money)
+        show_cols["SL đặt"] = items["SL_dat"].astype(int)
+        show_cols["Tặng"] = items["Tang"].astype(int)
+        show_cols["Tổng tiền"] = items["Tong_tien_hang"].apply(money)
+        show_cols["Chiết khấu"] = items["Chiet_khau"].apply(money)
+        show_cols["Thành tiền"] = items["Thanh_tien"].apply(money)
+
         st.dataframe(show_cols, hide_index=True, use_container_width=True)
 
         total = items["Thanh_tien"].sum()
