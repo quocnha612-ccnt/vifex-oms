@@ -809,12 +809,12 @@ def render_order_detail(ma_don):
             else:
                 st.button("☁️ Hóa đơn (Chưa có)", disabled=True, use_container_width=True)
 
-        # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG)
+        # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG) - DÙNG use_container_width CHUẨN
         if st.session_state.get(f"show_preview_{ma_don}", False):
             png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
             with st.container(border=True):
                 st.markdown("##### 📄 Ảnh xem trước Phiếu xuất đơn hàng:")
-                st.image(png_bytes, use_column_width=True)
+                st.image(png_bytes, use_container_width=True)
                 st.download_button("📥 Tải ảnh này về máy (PNG)", data=png_bytes,
                                     file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
                                     key=f"dl_inside_{ma_don}", use_container_width=True)
@@ -1190,7 +1190,7 @@ elif nav == "📊 Dashboard":
         by_sp = by_sp.groupby("Ten_SP").agg(
             San_luong=("San_luong_xuat_kho", "sum"),
             Doanh_thu=("Thanh_tien", "sum"),
-        ).reset_index().sort_values("Doanh_thu", ascending=False)
+            ).reset_index().sort_values("Doanh_thu", ascending=False)
         by_sp["Doanh_thu"] = by_sp["Doanh_thu"].apply(money)
         by_sp.columns = ["Sản phẩm", "Sản lượng", "Doanh thu"]
         st.dataframe(by_sp, hide_index=True, use_container_width=True)
