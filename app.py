@@ -2,7 +2,7 @@ import io
 import os
 import base64
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import gspread
 import pandas as pd
@@ -449,7 +449,7 @@ def find_row_by_code(ws, code, col_index=1):
 
 
 def update_order_status(ma_don, new_status):
-    today = date.today().strftime("%Y-%m-%d")
+    today = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
     don_hang_ws = get_ws("Don_hang")
     row = find_row_by_code(don_hang_ws, ma_don, col_index=1)
     if row:
@@ -464,7 +464,7 @@ def update_order_status(ma_don, new_status):
 
 
 # ---------------------------------------------------------------------------
-# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE (WEBHOOK APPS SCRIPT ĐƯỢC CẬP NHẬT TRỰC TIẾP)
+# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE (GIỜ VIỆT NAM UTC+7 CHUẨN)
 # ---------------------------------------------------------------------------
 def get_upload_endpoint():
     try:
@@ -515,7 +515,6 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
         "base64Data": b64_data
     }
     
-    # Gửi qua POST data dạng JSON payload và tự động follow redirect 302
     response = requests.post(
         url,
         data=json.dumps(payload),
@@ -531,7 +530,7 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
     
     if data.get("status") == "success":
         file_url = data.get("fileUrl")
-        # Ghi nhận ngay link Drive vào Google Sheets
+        # Ghi nhận thời gian chuẩn Việt Nam UTC+7
         try:
             ws = get_vat_sheet()
             rows = ws.col_values(2) # Cột B: Ma_don
@@ -541,7 +540,7 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
                     target_row = i
                     break
             
-            today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+            today_str = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M")
             if target_row:
                 ws.update_cell(target_row, 4, uploaded_file.name) # Cột D
                 ws.update_cell(target_row, 5, today_str)          # Cột E
@@ -612,13 +611,16 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     d.text((24, 50), "PHIẾU XUẤT ĐƠN HÀNG (không phải hóa đơn VAT)", font=f_sub, fill="white")
 
     y = 100
+    ten_cty = khach_hang_row.get("Ten_cong_ty") or khach_hang_row.get("Ten_GPKD") or khach_hang_row.get("Ten_NPP", "")
     ten_npp = khach_hang_row.get("Ten_NPP", "")
     dia_chi = khach_hang_row.get("Dia_chi_giao_phu") or khach_hang_row.get("Dia_chi_GPKD", "")
     sdt = khach_hang_row.get("SDT_phu", "")
 
     draw_bold(d, (24, y), f"Mã đơn: {ma_don}", f_h, "black"); y += 26
     d.text((24, y), f"Ngày lên đơn: {order_row.get('Ngay_len_don')}", font=f_n, fill="black"); y += 24
-    d.text((24, y), f"Khách hàng: {ten_npp}", font=f_n, fill="black"); y += 24
+    d.text((24, y), f"Khách hàng: {ten_cty}", font=f_n, fill="black"); y += 24
+    if ten_npp and ten_npp != ten_cty:
+        d.text((24, y), f"NHÀ PHÂN PHỐI: {ten_npp}", font=f_n, fill="black"); y += 24
     if dia_chi:
         d.text((24, y), f"Địa chỉ giao: {dia_chi}", font=f_n, fill="black"); y += 24
     if sdt:
@@ -687,6 +689,8 @@ if "nav" not in st.session_state:
     st.session_state.nav = "🏠 Trang chủ"
 if "order_items_count" not in st.session_state:
     st.session_state.order_items_count = 1
+if "order_form_version" not in st.session_state:
+    st.session_state.order_form_version = 0
 
 # ---------------------------------------------------------------------------
 # THANH ĐIỀU HƯỚNG TAB
@@ -733,10 +737,14 @@ def render_order_detail(ma_don):
     items = ctdh_df[ctdh_df["Ma_don"] == ma_don].copy()
     items = items.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
 
+    ten_cty = kh_row.get("Ten_cong_ty") or kh_row.get("Ten_GPKD") or kh_row.get("Ten_NPP", "")
+    ten_npp = kh_row.get("Ten_NPP", "")
+
     with st.container(border=True):
         st.markdown(f"#### Chi tiết đơn: `{ma_don}`")
         st.markdown(status_badge_html(order_row["Trang_thai"]), unsafe_allow_html=True)
-        st.write(f"**Khách hàng:** {kh_row.get('Ten_NPP', '')}")
+        st.write(f"**Khách hàng:** {ten_cty}")
+        st.write(f"**NHÀ PHÂN PHỐI :** {ten_npp}")
         st.write(f"**Ngày lên đơn:** {order_row['Ngay_len_don']}")
         st.write(f"**Hình thức thanh toán:** {order_row['Hinh_thuc_thanh_toan']}")
         if order_row.get("Ghi_chu_thanh_toan"):
@@ -910,12 +918,13 @@ elif nav == "📦 Đơn hàng":
         render_order_detail(st.session_state.selected_order)
 
 # ---------------------------------------------------------------------------
-# 3. LÊN ĐƠN HÀNG
+# 3. LÊN ĐƠN HÀNG (RESET TRẠNG THÁI & HIỂN THỊ ĐỊNH DẠNG TIỀN CK TRỰC QUAN)
 # ---------------------------------------------------------------------------
 elif nav == "➕ Lên đơn":
     banner("Lên đơn hàng")
 
-    ten_npp = st.selectbox("Khách hàng (NPP)", khach_hang_df["Ten_NPP"].dropna().tolist())
+    v = st.session_state.order_form_version
+    ten_npp = st.selectbox("Khách hàng (NPP)", khach_hang_df["Ten_NPP"].dropna().tolist(), key=f"form_npp_{v}")
     kh_matches = khach_hang_df[khach_hang_df["Ten_NPP"] == ten_npp]
     kh_row = kh_matches.iloc[0] if not kh_matches.empty else {}
     ma_kh = kh_row.get("Ma_KH", "")
@@ -923,14 +932,20 @@ elif nav == "➕ Lên đơn":
 
     st.caption(f"Sale phụ trách: **{sale_pt}**")
 
+    # Hiển thị thông báo nếu vừa tạo đơn thành công
+    if "just_created_order" in st.session_state:
+        msg, money_val = st.session_state.just_created_order
+        st.success(f"Đã tạo đơn **{msg}** — tổng giá trị: **{money(money_val)}**")
+        del st.session_state.just_created_order
+
     with st.container(border=True):
         c_d1, c_d2 = st.columns(2)
         with c_d1:
-            ngay_len_don = st.date_input("Ngày lên đơn", value=date.today())
+            ngay_len_don = st.date_input("Ngày lên đơn", value=date.today(), key=f"form_date_{v}")
         with c_d2:
-            hinh_thuc_tt = st.selectbox("Hình thức TT", ["Tiền mặt", "Chuyển khoản", "Công nợ", "Khác"])
+            hinh_thuc_tt = st.selectbox("Hình thức TT", ["Tiền mặt", "Chuyển khoản", "Công nợ", "Khác"], key=f"form_httt_{v}")
         
-        ghi_chu_tt = st.text_input("Ghi chú thanh toán", "")
+        ghi_chu_tt = st.text_input("Ghi chú thanh toán", "", key=f"form_note_{v}")
 
         st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin-12px 0 8px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
 
@@ -940,15 +955,17 @@ elif nav == "➕ Lên đơn":
         for i in range(st.session_state.order_items_count):
             st.markdown(f"""<div class="product-item-title">Sản phẩm #{i+1}</div>""", unsafe_allow_html=True)
             
-            ten_sp = st.selectbox(f"Chọn SP #{i+1}", ten_sp_list, key=f"sp_{i}", label_visibility="collapsed")
+            ten_sp = st.selectbox(f"Chọn SP #{i+1}", ten_sp_list, key=f"sp_{v}_{i}", label_visibility="collapsed")
             
             c1, c2, c3 = st.columns(3)
             with c1:
-                sl_dat = st.number_input("SL đặt", min_value=0, value=0, key=f"sl_{i}")
+                sl_dat = st.number_input("SL đặt", min_value=0, value=0, key=f"sl_{v}_{i}")
             with c2:
-                tang = st.number_input("Tặng", min_value=0.0, value=0.0, step=0.1, key=f"tang_{i}")
+                tang = st.number_input("Tặng", min_value=0.0, value=0.0, step=0.1, key=f"tang_{v}_{i}")
             with c3:
-                chiet_khau = st.number_input("CK (đ)", min_value=0, value=0, step=10000, key=f"ck_{i}")
+                chiet_khau = st.number_input("CK (đ)", min_value=0, value=0, step=10000, key=f"ck_{v}_{i}")
+                if chiet_khau > 0:
+                    st.caption(f"↳ {money(chiet_khau)}")
             
             st.markdown("<div style='height:1px;background:#edf0ed;margin:10px 0;'></div>", unsafe_allow_html=True)
             line_items.append((ten_sp, sl_dat, tang, chiet_khau))
@@ -995,10 +1012,12 @@ elif nav == "➕ Lên đơn":
                 thanh_tien, sl_dat + tang, "Lên đơn", ngay_len_don.month, ngay_len_don.year
             ], value_input_option="USER_ENTERED")
 
+        # Reset form về trạng thái trống ban đầu
         st.session_state.order_items_count = 1
+        st.session_state.order_form_version += 1
+        st.session_state.just_created_order = (ma_don, tong_tien)
         refresh()
-        st.success(f"Đã tạo đơn **{ma_don}** — tổng giá trị: {money(tong_tien)}")
-        st.balloons()
+        st.rerun()
 
 # ---------------------------------------------------------------------------
 # 4. LƯƠNG SALE
