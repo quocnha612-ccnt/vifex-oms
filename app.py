@@ -276,7 +276,7 @@ def banner(title, subtitle=None, highlight_text=None):
     logo_b64 = get_logo_base64()
     
     if logo_b64:
-        logo_html = f'<div class="vifex-banner-logo"><img src="data:imagepng;base64,{logo_b64}" alt="VIFEX Logo" /></div>'
+        logo_html = f'<div class="vifex-banner-logo"><img src="data:image/png;base64,{logo_b64}" alt="VIFEX Logo" /></div>'
     else:
         logo_html = '<div class="vifex-banner-logo" style="font-weight:800;color:#15503F;font-size:12px;">VIFEX</div>'
 
@@ -463,7 +463,7 @@ def update_order_status(ma_don, new_status):
 
 
 # ---------------------------------------------------------------------------
-# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE THÔNG QUA APPS SCRIPT WEBHOOK
+# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE (CHO PHÉP REDIRECT 302 CỦA APPS SCRIPT)
 # ---------------------------------------------------------------------------
 def get_upload_endpoint():
     try:
@@ -511,8 +511,15 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
         "base64Data": b64_data
     }
     
-    response = requests.post(url, json=payload, timeout=60)
-    data = response.json()
+    # Quan trọng: Cho phép requests tự follow redirect 302 của Google Apps Script
+    session = requests.Session()
+    response = session.post(url, json=payload, timeout=60, allow_redirects=True)
+    
+    try:
+        data = response.json()
+    except Exception:
+        # Nếu Google trả về HTML do chưa public quyền hoặc lỗi text
+        raise Exception(f"Google trả về phản hồi không hợp lệ ({response.status_code}): {response.text[:150]}")
     
     if data.get("status") == "success":
         file_url = data.get("fileUrl")
