@@ -344,17 +344,6 @@ def serial_to_date(v):
         return None
 
 
-def read_raw(name):
-    ws = get_spreadsheet().worksheet(name)
-    records = ws.get_all_records(value_render_option="UNFORMATTED_VALUE")
-    if records:
-        df = pd.DataFrame(records)
-    else:
-        headers = ws.row_values(1)
-        df = pd.DataFrame(columns=headers)
-    return df, ws
-
-
 SHEET_NAMES = ["San_pham", "Khach_hang", "Nhan_vien", "Lich_su_gia", "Don_hang", "Chi_tiet_don_hang"]
 
 
@@ -445,7 +434,7 @@ def lookup_gia(ma_sp, ngay, lich_su_gia_df):
 def find_row_by_code(ws, code, col_index=1):
     values = ws.col_values(col_index)
     for i, v in enumerate(values, start=1):
-        if v == code:
+        if str(v).strip() == str(code).strip():
             return i
     return None
 
@@ -460,8 +449,34 @@ def update_order_status(ma_don, new_status):
     ctdh_ws = get_ws("Chi_tiet_don_hang")
     ma_don_col = ctdh_ws.col_values(2)
     for i, v in enumerate(ma_don_col, start=1):
-        if v == ma_don:
+        if str(v).strip() == str(ma_don).strip():
             ctdh_ws.update_cell(i, 10, new_status)            # J: Trang_thai_don
+    refresh()
+
+
+def delete_order_completely(ma_don):
+    """Xóa toàn bộ dữ liệu đơn hàng ở Chi_tiet_don_hang, Don_hang và Hoa_don_VAT"""
+    # 1. Xóa các dòng trong Chi_tiet_don_hang (duyệt ngược từ dưới lên)
+    try:
+        ctdh_ws = get_ws("Chi_tiet_don_hang")
+        col_vals = ctdh_ws.col_values(2) # Cột B: Ma_don
+        for i in range(len(col_vals), 0, -1):
+            if str(col_vals[i - 1]).strip() == str(ma_don).strip():
+                ctdh_ws.delete_rows(i)
+    except Exception:
+        pass
+
+    # 2. Xóa dòng trong Don_hang
+    try:
+        don_hang_ws = get_ws("Don_hang")
+        row = find_row_by_code(don_hang_ws, ma_don, col_index=1)
+        if row:
+            don_hang_ws.delete_rows(row)
+    except Exception:
+        pass
+
+    # 3. Xóa bản ghi hóa đơn VAT (nếu có)
+    delete_vat_record(ma_don)
     refresh()
 
 
@@ -493,7 +508,7 @@ def get_vat_link_from_sheet(ma_don):
         ws = get_vat_sheet()
         records = ws.get_all_records()
         for r in records:
-            if str(r.get("Ma_don")) == ma_don:
+            if str(r.get("Ma_don")).strip() == str(ma_don).strip():
                 link = r.get("Link_Drive") or r.get("Link_file_PDF") or ""
                 if link and str(link).startswith("http"):
                     return link
@@ -537,7 +552,7 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
             rows = ws.col_values(2) # Cột B: Ma_don
             target_row = None
             for i, val in enumerate(rows, start=1):
-                if val == ma_don:
+                if str(val).strip() == str(ma_don).strip():
                     target_row = i
                     break
             
@@ -561,7 +576,7 @@ def delete_vat_record(ma_don):
         ws = get_vat_sheet()
         rows = ws.col_values(2)
         for i, val in enumerate(rows, start=1):
-            if val == ma_don:
+            if str(val).strip() == str(ma_don).strip():
                 ws.delete_rows(i)
                 break
     except Exception:
@@ -760,7 +775,7 @@ def order_total(ma_don):
     return merged.loc[merged["Ma_don"] == ma_don, "Thanh_tien"].sum()
 
 
-def render_order_detail(ma_don):
+def render_order_detail_inline(ma_don):
     order_rows = don_hang_df[don_hang_df["Ma_don"] == ma_don]
     if order_rows.empty:
         st.error("Không tìm thấy đơn hàng.")
@@ -836,7 +851,7 @@ def render_order_detail(ma_don):
             else:
                 st.button("☁️ Hóa đơn (Chưa có)", disabled=True, use_container_width=True)
 
-        # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG) - DÙNG use_container_width CHUẨN
+        # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG)
         if st.session_state.get(f"show_preview_{ma_don}", False):
             png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
             with st.container(border=True):
@@ -846,7 +861,7 @@ def render_order_detail(ma_don):
                                     file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
                                     key=f"dl_inside_{ma_don}", use_container_width=True)
 
-        # KHU VỰC TẢI THẲNG LÊN GOOGLE DRIVE (TỰ ĐỘNG ĐẨY VÀO FOLDER)
+        # KHU VỰC TẢI THẲNG LÊN GOOGLE DRIVE
         with st.expander("☁️ **Tải lên Hóa đơn VAT tự động vào Google Drive**", expanded=False):
             drive_vat_url = get_vat_link_from_sheet(ma_don)
             if drive_vat_url:
@@ -877,6 +892,19 @@ def render_order_detail(ma_don):
                             st.rerun()
                         except Exception as e:
                             st.error(f"Lỗi: {e}")
+
+        # KHU VỰC XÓA ĐƠN HÀNG HOÀN TOÀN
+        st.markdown("---")
+        with st.expander("⚠️ **Xóa đơn hàng này**", expanded=False):
+            st.warning(f"Thao tác này sẽ xóa vĩnh viễn đơn **{ma_don}** và toàn bộ sản phẩm chi tiết của đơn trên Google Sheets.")
+            confirm_del = st.checkbox(f"Tôi xác nhận muốn xóa đơn {ma_don}", key=f"chk_del_{ma_don}")
+            if confirm_del:
+                if st.button("🗑️ Xác nhận xóa vĩnh viễn đơn hàng", key=f"btn_confirm_del_order_{ma_don}", type="primary"):
+                    with st.spinner("Đang xóa đơn hàng trên Google Sheets..."):
+                        delete_order_completely(ma_don)
+                        st.session_state.selected_order = None
+                        st.success(f"Đã xóa thành công đơn hàng {ma_don}!")
+                        st.rerun()
 
         st.write("")
         if st.button("← Đóng xem chi tiết", key=f"close_{ma_don}", use_container_width=True):
@@ -918,7 +946,12 @@ if nav == "🏠 Trang chủ":
         
         for _, r in pending_view.iterrows():
             kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
-            ten_kh = kh.iloc[0]["Ten_NPP"] if not kh.empty else r["Ma_KH"]
+            ten_kh = safe_str(kh.iloc[0]["Ten_NPP"]) if not kh.empty else safe_str(r["Ma_KH"])
+            if not ten_kh:
+                ten_kh = "Chưa có tên NPP"
+                
+            is_expanded = (st.session_state.selected_order == r["Ma_don"])
+            
             with st.container(border=True):
                 col_left, col_right = st.columns([2.8, 1.2])
                 with col_left:
@@ -929,21 +962,22 @@ if nav == "🏠 Trang chủ":
                     """, unsafe_allow_html=True)
                 with col_right:
                     st.markdown(f"<div style='text-align:right;margin-bottom:6px;'>{status_badge_html(r['Trang_thai'])}</div>", unsafe_allow_html=True)
-                    if st.button("Xem chi tiết", key=f"home_view_{r['Ma_don']}", use_container_width=True):
-                        st.session_state.selected_order = r["Ma_don"]
+                    btn_text = "Đóng chi tiết" if is_expanded else "Xem chi tiết"
+                    if st.button(btn_text, key=f"home_view_{r['Ma_don']}", use_container_width=True):
+                        st.session_state.selected_order = None if is_expanded else r["Ma_don"]
                         st.rerun()
+
+            # HIỂN THỊ CHI TIẾT NGAY BÊN DƯỚI ĐƠN HÀNG ĐÓ
+            if is_expanded:
+                render_order_detail_inline(r["Ma_don"])
 
     st.write("")
     if st.button("+ Tạo đơn mới", key="home_new_order", type="primary", use_container_width=True):
         st.session_state.nav = "➕ Lên đơn"
         st.rerun()
 
-    if st.session_state.selected_order:
-        st.divider()
-        render_order_detail(st.session_state.selected_order)
-
 # ---------------------------------------------------------------------------
-# 2. DANH SÁCH ĐƠN HÀNG (SẮP XẾP GỌN GÀNG TRÊN 1 DÒNG & THỨ TỰ TẠO MỚI NHẤT TRÊN CÙNG)
+# 2. DANH SÁCH ĐƠN HÀNG (HIỂN THỊ CHI TIẾT NGAY BÊN DƯỚI ĐƠN ĐƯỢC CHỌN)
 # ---------------------------------------------------------------------------
 elif nav == "📦 Đơn hàng":
     banner("Danh sách đơn hàng")
@@ -963,7 +997,11 @@ elif nav == "📦 Đơn hàng":
     
     for _, r in view_df.iterrows():
         kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
-        ten_kh = kh.iloc[0]["Ten_NPP"] if not kh.empty else r["Ma_KH"]
+        ten_kh = safe_str(kh.iloc[0]["Ten_NPP"]) if not kh.empty else safe_str(r["Ma_KH"])
+        if not ten_kh:
+            ten_kh = "Chưa có tên NPP"
+            
+        is_expanded = (st.session_state.selected_order == r["Ma_don"])
         
         with st.container(border=True):
             col_info, col_action = st.columns([2.8, 1.2])
@@ -975,13 +1013,14 @@ elif nav == "📦 Đơn hàng":
                 """, unsafe_allow_html=True)
             with col_action:
                 st.markdown(f"<div style='text-align:right;margin-bottom:6px;'>{status_badge_html(r['Trang_thai'])}</div>", unsafe_allow_html=True)
-                if st.button("Xem chi tiết", key=f"list_view_{r['Ma_don']}", use_container_width=True):
-                    st.session_state.selected_order = r["Ma_don"]
+                btn_text = "Đóng chi tiết" if is_expanded else "Xem chi tiết"
+                if st.button(btn_text, key=f"list_view_{r['Ma_don']}", use_container_width=True):
+                    st.session_state.selected_order = None if is_expanded else r["Ma_don"]
                     st.rerun()
 
-    if st.session_state.selected_order:
-        st.divider()
-        render_order_detail(st.session_state.selected_order)
+        # HIỂN THỊ CHI TIẾT NGAY BÊN DƯỚI ĐƠN HÀNG ĐÓ
+        if is_expanded:
+            render_order_detail_inline(r["Ma_don"])
 
 # ---------------------------------------------------------------------------
 # 3. LÊN ĐƠN HÀNG (RESET TRẠNG THÁI & CHUẨN HÓA DỮ LIỆU GSPREAD)
