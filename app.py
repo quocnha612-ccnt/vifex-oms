@@ -24,6 +24,8 @@ RED = "#D92B2B"
 RED_BG = "#FDE8E8"
 AMBER = "#D97706"
 AMBER_BG = "#FEF3C7"
+BLUE = "#1D4ED8"
+BLUE_BG = "#EFF6FF"
 GRAY_BG = "#F3F4F6"
 GRAY_TEXT = "#4B5563"
 
@@ -913,10 +915,10 @@ def render_order_detail_inline(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# 1. TRANG CHỦ
+# 1. TRANG CHỦ (3 Ô TRẠNG THÁI: LÊN ĐƠN | GỬI KHO | ĐANG GIAO / CHƯA TT)
 # ---------------------------------------------------------------------------
 if nav == "🏠 Trang chủ":
-    pending = don_hang_df[don_hang_df["Trang_thai"].isin(["Gửi kho", "Đang giao hàng", "Chưa Thanh toán"])] if not don_hang_df.empty else pd.DataFrame()
+    pending = don_hang_df[don_hang_df["Trang_thai"].isin(["Lên đơn", "Gửi kho", "Đang giao hàng", "Chưa Thanh toán"])] if not don_hang_df.empty else pd.DataFrame()
     so_don_pending = len(pending)
     
     banner("Trang chủ", subtitle="Xin chào, Coco", highlight_text=f"{so_don_pending} đơn cần xử lý")
@@ -925,13 +927,24 @@ if nav == "🏠 Trang chủ":
         st.info("Chưa có đơn hàng nào.")
     else:
         counts = don_hang_df["Trang_thai"].value_counts()
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
+        
+        # Ô 1: Lên đơn (Mới thêm đứng trước ô Gửi kho)
         c1.markdown(f"""
+        <div class="metric-box" style="background:{BLUE_BG};border-color:#BFDBFE;">
+            <div class="metric-value" style="color:{BLUE};margin-top:0;">{int(counts.get('Lên đơn', 0))}</div>
+            <div class="metric-label" style="color:#1E40AF;font-weight:600;">Lên đơn</div>
+        </div>""", unsafe_allow_html=True)
+        
+        # Ô 2: Gửi kho
+        c2.markdown(f"""
         <div class="metric-box" style="background:{AMBER_BG};border-color:#FDE68A;">
             <div class="metric-value" style="color:{AMBER};margin-top:0;">{int(counts.get('Gửi kho', 0))}</div>
             <div class="metric-label" style="color:#92400E;font-weight:600;">Gửi kho</div>
         </div>""", unsafe_allow_html=True)
-        c2.markdown(f"""
+        
+        # Ô 3: Đang giao / Chưa TT
+        c3.markdown(f"""
         <div class="metric-box" style="background:{RED_BG};border-color:#FECACA;">
             <div class="metric-value" style="color:{RED};margin-top:0;">{int(counts.get('Đang giao hàng', 0)) + int(counts.get('Chưa Thanh toán', 0))}</div>
             <div class="metric-label" style="color:#991B1B;font-weight:600;">Đang giao / Chưa TT</div>
