@@ -793,16 +793,31 @@ def render_order_detail(ma_don):
                 st.success("Đã cập nhật trạng thái.")
                 st.rerun()
         with c2:
-            png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
-            st.download_button("📥 Phiếu xuất (PNG)", data=png_bytes,
-                                file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
-                                key=f"dl_{ma_don}", use_container_width=True)
+            preview_key = f"show_preview_{ma_don}"
+            if preview_key not in st.session_state:
+                st.session_state[preview_key] = False
+            
+            btn_label = "🙈 Đóng phiếu" if st.session_state[preview_key] else "🖼️ Phiếu xuất"
+            if st.button(btn_label, key=f"btn_toggle_preview_{ma_don}", use_container_width=True):
+                st.session_state[preview_key] = not st.session_state[preview_key]
+                st.rerun()
+                
         with c3:
             drive_vat_url = get_vat_link_from_sheet(ma_don)
             if drive_vat_url:
                 st.link_button("📄 Xem VAT (Drive)", url=drive_vat_url, use_container_width=True)
             else:
                 st.button("☁️ Hóa đơn (Chưa có)", disabled=True, use_container_width=True)
+
+        # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG)
+        if st.session_state.get(f"show_preview_{ma_don}", False):
+            png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
+            with st.container(border=True):
+                st.markdown("##### 📄 Ảnh xem trước Phiếu xuất đơn hàng:")
+                st.image(png_bytes, use_column_width=True)
+                st.download_button("📥 Tải ảnh này về máy (PNG)", data=png_bytes,
+                                    file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
+                                    key=f"dl_inside_{ma_don}", use_container_width=True)
 
         # KHU VỰC TẢI THẲNG LÊN GOOGLE DRIVE (TỰ ĐỘNG ĐẨY VÀO FOLDER)
         with st.expander("☁️ **Tải lên Hóa đơn VAT tự động vào Google Drive**", expanded=False):
