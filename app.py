@@ -139,35 +139,30 @@ header[data-testid="stHeader"] {
     object-fit: contain;
 }
 
-/* Thẻ Đơn hàng */
-.order-card {
-    background: #ffffff;
-    border: 1px solid #edf0ed;
-    border-radius: 14px;
-    padding: 14px 16px;
-    margin-bottom: 10px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+/* Thẻ Đơn hàng Compact */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    margin-bottom: 10px !important;
+    border-radius: 14px !important;
+    border-color: #edf0ed !important;
+    background: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.02) !important;
 }
-.order-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+
+.order-code-compact {
+    font-weight: 700;
+    font-size: 16px;
+    color: #111827;
+    margin-bottom: 2px;
+}
+.order-cust-compact {
+    font-size: 13.5px;
+    color: #4b5563;
     margin-bottom: 4px;
 }
-.order-code {
-    font-weight: 700;
-    font-size: 15px;
-    color: #111827;
-}
-.order-cust {
-    font-size: 13px;
-    color: #4b5563;
-    margin-bottom: 6px;
-}
-.order-value {
+.order-value-compact {
     font-weight: 700;
     color: #15503F;
-    font-size: 15px;
+    font-size: 15.5px;
 }
 
 .badge {
@@ -176,6 +171,7 @@ header[data-testid="stHeader"] {
     border-radius: 8px;
     font-size: 12px;
     font-weight: 600;
+    text-align: center;
 }
 
 .metric-box {
@@ -631,7 +627,6 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     f_h = get_font(16)
     f_n = get_font(14)
 
-    # Ước lượng chiều cao tổng để vẽ ảnh vừa khít không bị đè
     H = 450 + row_h * (len(items_df) + 2) + 120
 
     img = Image.new("RGB", (W, H), "white")
@@ -694,7 +689,6 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     if ghi_chu:
         y = draw_wrapped_text(d, (24, y), f"Ghi chú: {ghi_chu}", f_n, "black", max_width=810)
 
-    # Cắt gọn phần chiều cao thừa bên dưới
     final_h = max(y + 30, 300)
     cropped_img = img.crop((0, 0, W, final_h))
 
@@ -842,7 +836,7 @@ def render_order_detail(ma_don):
             else:
                 st.button("☁️ Hóa đơn (Chưa có)", disabled=True, use_container_width=True)
 
-        # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG)
+        # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG) - DÙNG use_container_width CHUẨN
         if st.session_state.get(f"show_preview_{ma_don}", False):
             png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
             with st.container(border=True):
@@ -918,25 +912,26 @@ if nav == "🏠 Trang chủ":
         st.write("")
         st.markdown("<div style='font-size:14px;font-weight:700;color:#374151;margin-bottom:8px;'>ĐƠN CẦN XỬ LÝ</div>", unsafe_allow_html=True)
         
-        pending_view = pending.sort_values("Ngay_len_don", ascending=False).head(6)
+        pending_view = pending.sort_values("Ma_don", ascending=False).head(6)
         if pending_view.empty:
             st.caption("Hiện không có đơn nào cần xử lý.")
         
         for _, r in pending_view.iterrows():
             kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
             ten_kh = kh.iloc[0]["Ten_NPP"] if not kh.empty else r["Ma_KH"]
-            st.markdown(f"""
-            <div class="order-card">
-                <div class="order-card-header">
-                    <span class="order-code">{r['Ma_don']}</span>
-                    {status_badge_html(r['Trang_thai'])}
-                </div>
-                <div class="order-cust">NPP {ten_kh}</div>
-                <div class="order-value">{money(order_total(r['Ma_don']))}</div>
-            </div>""", unsafe_allow_html=True)
-            if st.button("Xem chi tiết", key=f"home_view_{r['Ma_don']}", use_container_width=True):
-                st.session_state.selected_order = r["Ma_don"]
-                st.rerun()
+            with st.container(border=True):
+                col_left, col_right = st.columns([2.8, 1.2])
+                with col_left:
+                    st.markdown(f"""
+                    <div class="order-code-compact">{r['Ma_don']}</div>
+                    <div class="order-cust-compact">NPP {ten_kh}</div>
+                    <div class="order-value-compact">{money(order_total(r['Ma_don']))}</div>
+                    """, unsafe_allow_html=True)
+                with col_right:
+                    st.markdown(f"<div style='text-align:right;margin-bottom:6px;'>{status_badge_html(r['Trang_thai'])}</div>", unsafe_allow_html=True)
+                    if st.button("Xem chi tiết", key=f"home_view_{r['Ma_don']}", use_container_width=True):
+                        st.session_state.selected_order = r["Ma_don"]
+                        st.rerun()
 
     st.write("")
     if st.button("+ Tạo đơn mới", key="home_new_order", type="primary", use_container_width=True):
@@ -948,7 +943,7 @@ if nav == "🏠 Trang chủ":
         render_order_detail(st.session_state.selected_order)
 
 # ---------------------------------------------------------------------------
-# 2. DANH SÁCH ĐƠN HÀNG
+# 2. DANH SÁCH ĐƠN HÀNG (SẮP XẾP GỌN GÀNG TRÊN 1 DÒNG & THỨ TỰ TẠO MỚI NHẤT TRÊN CÙNG)
 # ---------------------------------------------------------------------------
 elif nav == "📦 Đơn hàng":
     banner("Danh sách đơn hàng")
@@ -958,33 +953,38 @@ elif nav == "📦 Đơn hàng":
     view_df = don_hang_df.copy()
     if filter_status != "Tất cả":
         view_df = view_df[view_df["Trang_thai"] == filter_status]
-    view_df = view_df.sort_values("Ngay_len_don", ascending=False)
+    
+    # Sắp xếp đơn hàng mới nhất lên trên cùng theo mã đơn DH...
+    view_df = view_df.sort_values("Ma_don", ascending=False)
 
     st.write("")
     if view_df.empty:
         st.info("Không có đơn hàng nào phù hợp.")
+    
     for _, r in view_df.iterrows():
         kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
         ten_kh = kh.iloc[0]["Ten_NPP"] if not kh.empty else r["Ma_KH"]
-        st.markdown(f"""
-        <div class="order-card">
-            <div class="order-card-header">
-                <span class="order-code">{r['Ma_don']}</span>
-                {status_badge_html(r['Trang_thai'])}
-            </div>
-            <div class="order-cust">NPP {ten_kh}</div>
-            <div class="order-value">{money(order_total(r['Ma_don']))}</div>
-        </div>""", unsafe_allow_html=True)
-        if st.button("Xem chi tiết", key=f"list_view_{r['Ma_don']}", use_container_width=True):
-            st.session_state.selected_order = r["Ma_don"]
-            st.rerun()
+        
+        with st.container(border=True):
+            col_info, col_action = st.columns([2.8, 1.2])
+            with col_info:
+                st.markdown(f"""
+                <div class="order-code-compact">{r['Ma_don']}</div>
+                <div class="order-cust-compact">NPP {ten_kh}</div>
+                <div class="order-value-compact">{money(order_total(r['Ma_don']))}</div>
+                """, unsafe_allow_html=True)
+            with col_action:
+                st.markdown(f"<div style='text-align:right;margin-bottom:6px;'>{status_badge_html(r['Trang_thai'])}</div>", unsafe_allow_html=True)
+                if st.button("Xem chi tiết", key=f"list_view_{r['Ma_don']}", use_container_width=True):
+                    st.session_state.selected_order = r["Ma_don"]
+                    st.rerun()
 
     if st.session_state.selected_order:
         st.divider()
         render_order_detail(st.session_state.selected_order)
 
 # ---------------------------------------------------------------------------
-# 3. LÊN ĐƠN HÀNG (RESET TRẠNG THÁI & HIỂN THỊ ĐỊNH DẠNG TIỀN CK TRỰC QUAN)
+# 3. LÊN ĐƠN HÀNG (RESET TRẠNG THÁI & CHUẨN HÓA DỮ LIỆU GSPREAD)
 # ---------------------------------------------------------------------------
 elif nav == "➕ Lên đơn":
     banner("Lên đơn hàng")
@@ -993,8 +993,8 @@ elif nav == "➕ Lên đơn":
     ten_npp = st.selectbox("Khách hàng (NPP)", khach_hang_df["Ten_NPP"].dropna().tolist(), key=f"form_npp_{v}")
     kh_matches = khach_hang_df[khach_hang_df["Ten_NPP"] == ten_npp]
     kh_row = kh_matches.iloc[0] if not kh_matches.empty else {}
-    ma_kh = kh_row.get("Ma_KH", "")
-    sale_pt = kh_row.get("Sale_phu_trach", "")
+    ma_kh = safe_str(kh_row.get("Ma_KH"))
+    sale_pt = safe_str(kh_row.get("Sale_phu_trach"))
 
     st.caption(f"Sale phụ trách: **{sale_pt}**")
 
@@ -1060,23 +1060,48 @@ elif nav == "➕ Lên đơn":
         ctdh_ws = get_ws("Chi_tiet_don_hang")
         ma_don = next_code(don_hang_ws, 1, "DH", 5)
 
-        don_hang_ws.append_row([
-            ma_don, ngay_len_don.strftime("%Y-%m-%d"), ma_kh, sale_pt,
-            "Lên đơn", hinh_thuc_tt, ghi_chu_tt, ngay_len_don.strftime("%Y-%m-%d"),
-            ngay_len_don.month, ngay_len_don.year
-        ], value_input_option="USER_ENTERED")
+        # Chuyển đổi tất cả dữ liệu sang chuỗi và số nguyên/thực thuần túy
+        don_hang_row_data = [
+            str(ma_don),
+            str(ngay_len_don.strftime("%Y-%m-%d")),
+            str(ma_kh),
+            str(sale_pt),
+            "Lên đơn",
+            str(hinh_thuc_tt),
+            str(ghi_chu_tt),
+            str(ngay_len_don.strftime("%Y-%m-%d")),
+            int(ngay_len_don.month),
+            int(ngay_len_don.year)
+        ]
+        
+        don_hang_ws.append_row(don_hang_row_data, value_input_option="USER_ENTERED")
 
         tong_tien = 0
         for ten_sp, sl_dat, tang, chiet_khau in valid_items:
-            ma_sp = san_pham_df[san_pham_df["Ten_SP"] == ten_sp].iloc[0]["Ma_SP"]
-            don_gia = lookup_gia(ma_sp, ngay_len_don, lich_su_gia_df)
-            thanh_tien = sl_dat * don_gia - chiet_khau
+            ma_sp = safe_str(san_pham_df[san_pham_df["Ten_SP"] == ten_sp].iloc[0]["Ma_SP"])
+            don_gia = float(lookup_gia(ma_sp, ngay_len_don, lich_su_gia_df))
+            sl_dat_num = int(sl_dat)
+            tang_num = float(tang)
+            ck_num = float(chiet_khau)
+            thanh_tien = float(sl_dat_num * don_gia - ck_num)
             tong_tien += thanh_tien
             ma_ctdh = next_code(ctdh_ws, 1, "CT", 5)
-            ctdh_ws.append_row([
-                ma_ctdh, ma_don, ma_sp, sl_dat, tang, don_gia, chiet_khau,
-                thanh_tien, sl_dat + tang, "Lên đơn", ngay_len_don.month, ngay_len_don.year
-            ], value_input_option="USER_ENTERED")
+            
+            ctdh_row_data = [
+                str(ma_ctdh),
+                str(ma_don),
+                str(ma_sp),
+                int(sl_dat_num),
+                float(tang_num),
+                float(don_gia),
+                float(ck_num),
+                float(thanh_tien),
+                float(sl_dat_num + tang_num),
+                "Lên đơn",
+                int(ngay_len_don.month),
+                int(ngay_len_don.year)
+            ]
+            ctdh_ws.append_row(ctdh_row_data, value_input_option="USER_ENTERED")
 
         # Reset form về trạng thái trống ban đầu
         st.session_state.order_items_count = 1
