@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 import gspread
 import pandas as pd
+import requests
 import streamlit as st
 from google.oauth2.service_account import Credentials
 from PIL import Image, ImageDraw, ImageFont
@@ -28,7 +29,8 @@ GRAY_TEXT = "#4B5563"
 ALL_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
 VALID_STATUSES = ["Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
 
-VAT_SHEET_NAME = "Hoa_don_VAT"
+VAT_FOLDER_ID = "1HZiL99pNqV31u6Z8q5EqeoyjFJkPJFji"
+DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxowVPuGR6emH1e3dwEUae2JE1bEAte-kz0OvPKTn6PletHcLjrS28UM7a1De9RIiEzFg/exec"
 
 # ---------------------------------------------------------------------------
 # HÀM LOAD ẢNH LOGO DƯỚI DẠNG BASE64
@@ -274,7 +276,7 @@ def banner(title, subtitle=None, highlight_text=None):
     logo_b64 = get_logo_base64()
     
     if logo_b64:
-        logo_html = f'<div class="vifex-banner-logo"><img src="data:image/png;base64,{logo_b64}" alt="VIFEX Logo" /></div>'
+        logo_html = f'<div class="vifex-banner-logo"><img src="data:imagepng;base64,{logo_b64}" alt="VIFEX Logo" /></div>'
     else:
         logo_html = '<div class="vifex-banner-logo" style="font-weight:800;color:#15503F;font-size:12px;">VIFEX</div>'
 
@@ -461,119 +463,88 @@ def update_order_status(ma_don, new_status):
 
 
 # ---------------------------------------------------------------------------
-# XỬ LÝ LƯU TRỮ HÓA ĐƠN VAT (LOCAL + GOOGLE SHEETS / DRIVE LINK)
+# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE THÔNG QUA APPS SCRIPT WEBHOOK
 # ---------------------------------------------------------------------------
-LOCAL_VAT_DIR = os.path.join(os.path.dirname(__file__), "vat_invoices")
-os.makedirs(LOCAL_VAT_DIR, exist_ok=True)
+def get_upload_endpoint():
+    try:
+        return st.secrets.get("DRIVE_UPLOAD_URL", DEFAULT_SCRIPT_URL)
+    except Exception:
+        return DEFAULT_SCRIPT_URL
+
 
 def get_vat_sheet():
     sh = get_spreadsheet()
     try:
-        return sh.worksheet(VAT_SHEET_NAME)
+        return sh.worksheet("Hoa_don_VAT")
     except Exception:
-        ws = sh.add_worksheet(title=VAT_SHEET_NAME, rows=100, cols=5)
-        ws.append_row(["Ma_don", "Ten_file", "Ngay_tai_len", "Link_Drive", "Base64_Local"])
+        ws = sh.add_worksheet(title="Hoa_don_VAT", rows=100, cols=6)
+        ws.append_row(["Ma_HD_VAT", "Ma_don", "Ma_KH", "Ten_file", "Ngay_tai_len", "Link_Drive"])
         return ws
 
 
-def get_vat_record(ma_don):
-    # 1. Kiểm tra local file
-    for ext in [".pdf", ".png", ".jpg", ".jpeg"]:
-        p = os.path.join(LOCAL_VAT_DIR, f"{ma_don}{ext}")
-        if os.path.exists(p):
-            with open(p, "rb") as f:
-                return {"type": "local", "bytes": f.read(), "ext": ext, "name": f"{ma_don}_VAT{ext}"}
-    
-    # 2. Kiểm tra trên Sheet Hoa_don_VAT (nếu có link hoặc base64 dự phòng)
+def get_vat_link_from_sheet(ma_don):
     try:
         ws = get_vat_sheet()
         records = ws.get_all_records()
         for r in records:
             if str(r.get("Ma_don")) == ma_don:
-                link = r.get("Link_Drive", "")
-                b64 = r.get("Base64_Local", "")
-                name = r.get("Ten_file") or f"{ma_don}_VAT.pdf"
-                _, ext = os.path.splitext(name)
-                if b64:
-                    raw_bytes = base64.b64decode(b64)
-                    return {"type": "bytes", "bytes": raw_bytes, "ext": ext, "name": name, "link": link}
-                if link:
-                    return {"type": "link", "link": link, "name": name, "ext": ext}
+                link = r.get("Link_Drive") or r.get("Link_file_PDF") or ""
+                if link and str(link).startswith("http"):
+                    return link
     except Exception:
         pass
     return None
 
 
-def save_vat_file(ma_don, uploaded_file, drive_link=None):
+def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
+    """Tự động đẩy file PDF từ Streamlit thẳng vào folder Drive thông qua Webhook Apps Script"""
+    url = get_upload_endpoint()
     _, ext = os.path.splitext(uploaded_file.name)
-    ext = ext.lower()
-    local_path = os.path.join(LOCAL_VAT_DIR, f"{ma_don}{ext}")
+    file_name = f"{ma_don}_VAT{ext.lower()}"
     
-    # Xóa file local cũ nếu có
-    for old_ext in [".pdf", ".png", ".jpg", ".jpeg"]:
-        old_p = os.path.join(LOCAL_VAT_DIR, f"{ma_don}{old_ext}")
-        if os.path.exists(old_p):
-            os.remove(old_p)
+    b64_data = base64.b64encode(uploaded_file.getvalue()).decode()
+    
+    payload = {
+        "folderId": VAT_FOLDER_ID,
+        "fileName": file_name,
+        "mimeType": uploaded_file.type if uploaded_file.type else "application/pdf",
+        "base64Data": b64_data
+    }
+    
+    response = requests.post(url, json=payload, timeout=60)
+    data = response.json()
+    
+    if data.get("status") == "success":
+        file_url = data.get("fileUrl")
+        # Ghi nhận ngay link Drive vào Google Sheets
+        try:
+            ws = get_vat_sheet()
+            rows = ws.col_values(2) # Cột B: Ma_don
+            target_row = None
+            for i, val in enumerate(rows, start=1):
+                if val == ma_don:
+                    target_row = i
+                    break
             
-    # Lưu file local
-    file_bytes = uploaded_file.getvalue()
-    with open(local_path, "wb") as f:
-        f.write(file_bytes)
-        
-    # Đồng bộ lưu vào Google Sheets
-    try:
-        ws = get_vat_sheet()
-        rows = ws.col_values(1)
-        target_row = None
-        for i, val in enumerate(rows, start=1):
-            if val == ma_don:
-                target_row = i
-                break
-                
-        today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-        b64_str = base64.b64encode(file_bytes).decode() if len(file_bytes) < 400000 else "" # Lưu base64 nếu < 400KB
-        
-        if target_row:
-            ws.update_cell(target_row, 2, uploaded_file.name)
-            ws.update_cell(target_row, 3, today_str)
-            ws.update_cell(target_row, 4, drive_link or "")
-            ws.update_cell(target_row, 5, b64_str)
-        else:
-            ws.append_row([ma_don, uploaded_file.name, today_str, drive_link or "", b64_str])
-    except Exception:
-        pass
-
-
-def save_vat_link_only(ma_don, drive_link):
-    try:
-        ws = get_vat_sheet()
-        rows = ws.col_values(1)
-        target_row = None
-        for i, val in enumerate(rows, start=1):
-            if val == ma_don:
-                target_row = i
-                break
-        today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-        if target_row:
-            ws.update_cell(target_row, 3, today_str)
-            ws.update_cell(target_row, 4, drive_link)
-        else:
-            ws.append_row([ma_don, f"{ma_don}_VAT.pdf", today_str, drive_link, ""])
-    except Exception:
-        pass
+            today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+            if target_row:
+                ws.update_cell(target_row, 4, uploaded_file.name) # Cột D
+                ws.update_cell(target_row, 5, today_str)          # Cột E
+                ws.update_cell(target_row, 6, file_url)           # Cột F: Link_Drive
+            else:
+                ma_vat = next_code(ws, 1, "HDVAT", 4)
+                ws.append_row([ma_vat, ma_don, ma_kh, uploaded_file.name, today_str, file_url])
+        except Exception:
+            pass
+        return file_url
+    else:
+        raise Exception(data.get("message", "Lỗi tải lên Google Drive."))
 
 
 def delete_vat_record(ma_don):
-    # Xóa file local
-    for ext in [".pdf", ".png", ".jpg", ".jpeg"]:
-        p = os.path.join(LOCAL_VAT_DIR, f"{ma_don}{ext}")
-        if os.path.exists(p):
-            os.remove(p)
-            
-    # Xóa dòng trên Sheet
     try:
         ws = get_vat_sheet()
-        rows = ws.col_values(1)
+        rows = ws.col_values(2)
         for i, val in enumerate(rows, start=1):
             if val == ma_don:
                 ws.delete_rows(i)
@@ -703,7 +674,7 @@ if "order_items_count" not in st.session_state:
     st.session_state.order_items_count = 1
 
 # ---------------------------------------------------------------------------
-# THANH ĐIỀU HƯỚNG TAB (DẠNG LƯỚI GRID 3 CỘT TRÊN CẢ PC VÀ MOBILE)
+# THANH ĐIỀU HƯỚNG TAB
 # ---------------------------------------------------------------------------
 NAV_OPTIONS = ["Trang chủ", "Đơn hàng", "Lên đơn", "Lương Sale", "Dashboard", "Khách hàng"]
 NAV_ICONS = {"Trang chủ": "🏠", "Đơn hàng": "📦", "Lên đơn": "➕", "Lương Sale": "💰", "Dashboard": "📊", "Khách hàng": "👥"}
@@ -742,6 +713,7 @@ def render_order_detail(ma_don):
     order_row = order_rows.iloc[0]
     kh_rows = khach_hang_df[khach_hang_df["Ma_KH"] == order_row["Ma_KH"]]
     kh_row = kh_rows.iloc[0] if not kh_rows.empty else {}
+    ma_kh = order_row["Ma_KH"]
 
     items = ctdh_df[ctdh_df["Ma_don"] == ma_don].copy()
     items = items.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
@@ -785,35 +757,26 @@ def render_order_detail(ma_don):
                                 file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
                                 key=f"dl_{ma_don}", use_container_width=True)
         with c3:
-            vat_rec = get_vat_record(ma_don)
-            if vat_rec:
-                if vat_rec.get("bytes"):
-                    file_ext = vat_rec.get("ext", ".pdf")
-                    mime_t = "application/pdf" if file_ext.lower() == ".pdf" else f"image/{file_ext.lower().replace('.', '')}"
-                    st.download_button("📄 Tải VAT", data=vat_rec["bytes"],
-                                        file_name=vat_rec.get("name", f"{ma_don}_VAT{file_ext}"), mime=mime_t,
-                                        key=f"dl_vat_{ma_don}", use_container_width=True)
-                elif vat_rec.get("link"):
-                    st.link_button("📄 Mở VAT (Drive)", url=vat_rec["link"], use_container_width=True)
+            drive_vat_url = get_vat_link_from_sheet(ma_don)
+            if drive_vat_url:
+                st.link_button("📄 Xem VAT (Drive)", url=drive_vat_url, use_container_width=True)
             else:
                 st.button("☁️ Hóa đơn (Chưa có)", disabled=True, use_container_width=True)
 
-        # KHU VỰC QUẢN LÝ / TẢI LÊN / XÓA HÓA ĐƠN VAT
-        with st.expander("☁️ **Quản lý & Lưu trữ Hóa đơn VAT**", expanded=False):
-            vat_rec = get_vat_record(ma_don)
-            if vat_rec:
-                st.info(f"✅ Đơn hàng **{ma_don}** đã được lưu trữ hóa đơn VAT.")
-                if vat_rec.get("link"):
-                    st.caption(f"🔗 Link Drive: [{vat_rec['link']}]({vat_rec['link']})")
-                    
-                if st.button("🗑️ Xóa hóa đơn này", key=f"btn_del_vat_{ma_don}"):
+        # KHU VỰC TẢI THẲNG LÊN GOOGLE DRIVE (TỰ ĐỘNG ĐẨY VÀO FOLDER)
+        with st.expander("☁️ **Tải lên Hóa đơn VAT tự động vào Google Drive**", expanded=False):
+            drive_vat_url = get_vat_link_from_sheet(ma_don)
+            if drive_vat_url:
+                st.info(f"✅ Đơn hàng **{ma_don}** đã có file lưu trên Google Drive.")
+                st.markdown(f"👉 [Bấm vào đây để mở xem file trên Google Drive]({drive_vat_url})")
+                if st.button("🗑️ Xóa liên kết hóa đơn này", key=f"btn_del_vat_{ma_don}"):
                     delete_vat_record(ma_don)
-                    st.success(f"Đã xóa hóa đơn VAT của đơn **{ma_don}**.")
+                    st.success(f"Đã xóa thông tin hóa đơn VAT của đơn **{ma_don}**.")
                     st.rerun()
                 st.markdown("---")
-                st.caption("Tải tệp mới bên dưới để **Cập nhật / Thay thế**:")
+                st.caption("Chọn tệp mới bên dưới nếu muốn **Tải đè / Thay thế file trên Drive**:")
             else:
-                st.caption("Chọn tệp PDF hoặc ảnh hóa đơn VAT để lưu trữ cho đơn hàng này.")
+                st.caption("Kéo thả tệp PDF vào đây, hệ thống sẽ **tự động đẩy thẳng file vào thư mục Google Drive**.")
 
             uploaded_vat = st.file_uploader(
                 f"Chọn tệp hóa đơn cho đơn {ma_don}", 
@@ -822,23 +785,15 @@ def render_order_detail(ma_don):
                 label_visibility="collapsed"
             )
             
-            drive_link_input = st.text_input(
-                "Hoặc dán Link Google Drive hóa đơn (tùy chọn):",
-                placeholder="https://drive.google.com/file/d/...",
-                key=f"link_input_{ma_don}"
-            )
-            
-            if st.button("⬆️ Lưu Hóa đơn VAT", key=f"btn_save_vat_{ma_don}", type="primary"):
-                if uploaded_vat is not None:
-                    save_vat_file(ma_don, uploaded_vat, drive_link=drive_link_input)
-                    st.success(f"Đã lưu thành công hóa đơn VAT cho đơn **{ma_don}**!")
-                    st.rerun()
-                elif drive_link_input:
-                    save_vat_link_only(ma_don, drive_link_input)
-                    st.success(f"Đã liên kết link Drive hóa đơn cho đơn **{ma_don}**!")
-                    st.rerun()
-                else:
-                    st.warning("Vui lòng chọn tệp tải lên hoặc dán link Google Drive.")
+            if uploaded_vat is not None:
+                if st.button("⬆️ Tải lên Google Drive", key=f"btn_save_vat_{ma_don}", type="primary"):
+                    with st.spinner("Đang tự động đẩy file lên Google Drive..."):
+                        try:
+                            file_drive_link = upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_vat)
+                            st.success(f"Đã tải thành công file lên Google Drive cho đơn **{ma_don}**!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
 
         st.write("")
         if st.button("← Đóng xem chi tiết", key=f"close_{ma_don}", use_container_width=True):
@@ -1031,7 +986,7 @@ elif nav == "➕ Lên đơn":
         st.balloons()
 
 # ---------------------------------------------------------------------------
-# 4. LƯƠNG SALE (BỔ SUNG BẢNG THỐNG KÊ THEO NPP & NHÓM DANH MỤC)
+# 4. LƯƠNG SALE
 # ---------------------------------------------------------------------------
 elif nav == "💰 Lương Sale":
     banner("Doanh số & Lương Sale")
@@ -1052,7 +1007,6 @@ elif nav == "💰 Lương Sale":
         ma_nv = nv_row["Ma_NV"]
         ty_le_hh = float(nv_row.get("Ty_le_hoa_hong") or 0.02)
 
-        # Tính doanh số theo các trạng thái hợp lệ (Gửi kho, Đang giao hàng, Đã nhận hàng, Chưa Thanh toán)
         valid = merged[merged["Trang_thai"].isin(VALID_STATUSES)].copy()
         valid["Ngay_len_don"] = pd.to_datetime(valid["Ngay_len_don"], errors="coerce")
         of_sale = valid[(valid["Sale_phu_trach"] == ma_nv) &
