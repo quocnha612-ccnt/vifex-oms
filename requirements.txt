@@ -3,4 +3,5 @@ gspread
 google-auth
 pandas
 Pillow
+requests
 google-api-python-client
