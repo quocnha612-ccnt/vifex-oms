@@ -1,6 +1,7 @@
 import io
 import os
 import base64
+import json
 from datetime import date, datetime
 
 import gspread
@@ -463,13 +464,13 @@ def update_order_status(ma_don, new_status):
 
 
 # ---------------------------------------------------------------------------
-# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE (CHO PHÉP REDIRECT 302 CỦA APPS SCRIPT)
+# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE (WEBHOOK APPS SCRIPT)
 # ---------------------------------------------------------------------------
 def get_upload_endpoint():
     try:
-        return st.secrets.get("DRIVE_UPLOAD_URL", DEFAULT_SCRIPT_URL)
+        return st.secrets.get("DRIVE_UPLOAD_URL", DEFAULT_SCRIPT_URL).strip()
     except Exception:
-        return DEFAULT_SCRIPT_URL
+        return DEFAULT_SCRIPT_URL.strip()
 
 
 def get_vat_sheet():
@@ -511,15 +512,19 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
         "base64Data": b64_data
     }
     
-    # Quan trọng: Cho phép requests tự follow redirect 302 của Google Apps Script
-    session = requests.Session()
-    response = session.post(url, json=payload, timeout=60, allow_redirects=True)
+    # Gửi qua POST data dạng JSON payload
+    response = requests.post(
+        url,
+        data=json.dumps(payload),
+        headers={"Content-Type": "application/json"},
+        timeout=60,
+        allow_redirects=True
+    )
     
     try:
         data = response.json()
     except Exception:
-        # Nếu Google trả về HTML do chưa public quyền hoặc lỗi text
-        raise Exception(f"Google trả về phản hồi không hợp lệ ({response.status_code}): {response.text[:150]}")
+        raise Exception(f"Phản hồi từ Google Apps Script ({response.status_code}): {response.text[:200]}")
     
     if data.get("status") == "success":
         file_url = data.get("fileUrl")
