@@ -51,7 +51,7 @@ def get_logo_base64():
     return None
 
 # ---------------------------------------------------------------------------
-# CSS RESPONSIVE & KHUNG UPLOAD HÓA ĐƠN VAT
+# CSS RESPONSIVE & BỐ CỤC CHUẨN
 # ---------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -60,7 +60,7 @@ header[data-testid="stHeader"] {
     z-index: 1 !important;
 }
 
-/* Desktop */
+/* 1. Desktop / Màn hình rộng */
 .block-container {
     max-width: 960px !important;
     padding-top: 4.5rem !important;
@@ -197,6 +197,7 @@ header[data-testid="stHeader"] {
     margin-bottom: 8px;
 }
 
+/* Thanh điều hướng Desktop */
 div[class*="st-key-vifex_nav"] {
     margin-bottom: 16px;
 }
@@ -221,7 +222,7 @@ div.stButton > button[kind="primary"] {
     font-weight: 600 !important;
 }
 
-/* 2. Mobile */
+/* 2. Mobile (Dạng lưới Grid 3 cột x 2 hàng không bị xếp dọc) */
 @media screen and (max-width: 768px) {
     .block-container {
         max-width: 100% !important;
@@ -938,7 +939,7 @@ elif nav == "➕ Lên đơn":
         st.balloons()
 
 # ---------------------------------------------------------------------------
-# 4. LƯƠNG SALE
+# 4. LƯƠNG SALE (BỔ SUNG BẢNG THỐNG KÊ THEO NPP & NHÓM DANH MỤC)
 # ---------------------------------------------------------------------------
 elif nav == "💰 Lương Sale":
     banner("Doanh số & Lương Sale")
@@ -959,6 +960,7 @@ elif nav == "💰 Lương Sale":
         ma_nv = nv_row["Ma_NV"]
         ty_le_hh = float(nv_row.get("Ty_le_hoa_hong") or 0.02)
 
+        # Tính doanh số theo các trạng thái hợp lệ (Gửi kho, Đang giao hàng, Đã nhận hàng, Chưa Thanh toán)
         valid = merged[merged["Trang_thai"].isin(VALID_STATUSES)].copy()
         valid["Ngay_len_don"] = pd.to_datetime(valid["Ngay_len_don"], errors="coerce")
         of_sale = valid[(valid["Sale_phu_trach"] == ma_nv) &
