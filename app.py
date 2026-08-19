@@ -7,8 +7,6 @@ import gspread
 import pandas as pd
 import streamlit as st
 from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from PIL import Image, ImageDraw, ImageFont
 
 st.set_page_config(page_title="VIFEX - Quản lý đơn hàng", page_icon="📦", layout="centered")
@@ -30,7 +28,7 @@ GRAY_TEXT = "#4B5563"
 ALL_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
 VALID_STATUSES = ["Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
 
-VAT_FOLDER_ID = "1HZiL99pNqV31u6Z8q5EqeoyjFJkPJFji"
+VAT_SHEET_NAME = "Hoa_don_VAT"
 
 # ---------------------------------------------------------------------------
 # HÀM LOAD ẢNH LOGO DƯỚI DẠNG BASE64
@@ -313,7 +311,7 @@ def money(v):
 
 
 # ---------------------------------------------------------------------------
-# Kết nối Google Sheets & Google Drive API
+# Kết nối Google Sheets
 # ---------------------------------------------------------------------------
 @st.cache_resource
 def get_credentials():
@@ -324,10 +322,6 @@ def get_credentials():
 @st.cache_resource
 def get_client():
     return gspread.authorize(get_credentials())
-
-@st.cache_resource
-def get_drive_service():
-    return build("drive", "v3", credentials=get_credentials(), cache_discovery=False)
 
 @st.cache_resource
 def get_spreadsheet():
@@ -467,82 +461,125 @@ def update_order_status(ma_don, new_status):
 
 
 # ---------------------------------------------------------------------------
-# XỬ LÝ LƯU TRỮ HÓA ĐƠN VAT TRỰC TIẾP LÊN GOOGLE DRIVE (KÈM BẮT LỖI CHI TIẾT & XÓA)
+# XỬ LÝ LƯU TRỮ HÓA ĐƠN VAT (LOCAL + GOOGLE SHEETS / DRIVE LINK)
 # ---------------------------------------------------------------------------
-def find_vat_invoice_on_drive(ma_don):
-    """Tìm xem trên thư mục Drive đã có file hóa đơn của mã đơn này chưa."""
+LOCAL_VAT_DIR = os.path.join(os.path.dirname(__file__), "vat_invoices")
+os.makedirs(LOCAL_VAT_DIR, exist_ok=True)
+
+def get_vat_sheet():
+    sh = get_spreadsheet()
     try:
-        drive = get_drive_service()
-        query = f"'{VAT_FOLDER_ID}' in parents and name contains '{ma_don}' and trashed = false"
-        results = drive.files().list(
-            q=query, 
-            fields="files(id, name, mimeType, webViewLink)",
-            supportsAllDrives=True,
-            includeItemsFromAllDrives=True
-        ).execute()
-        files = results.get("files", [])
-        if files:
-            return files[0]
+        return sh.worksheet(VAT_SHEET_NAME)
+    except Exception:
+        ws = sh.add_worksheet(title=VAT_SHEET_NAME, rows=100, cols=5)
+        ws.append_row(["Ma_don", "Ten_file", "Ngay_tai_len", "Link_Drive", "Base64_Local"])
+        return ws
+
+
+def get_vat_record(ma_don):
+    # 1. Kiểm tra local file
+    for ext in [".pdf", ".png", ".jpg", ".jpeg"]:
+        p = os.path.join(LOCAL_VAT_DIR, f"{ma_don}{ext}")
+        if os.path.exists(p):
+            with open(p, "rb") as f:
+                return {"type": "local", "bytes": f.read(), "ext": ext, "name": f"{ma_don}_VAT{ext}"}
+    
+    # 2. Kiểm tra trên Sheet Hoa_don_VAT (nếu có link hoặc base64 dự phòng)
+    try:
+        ws = get_vat_sheet()
+        records = ws.get_all_records()
+        for r in records:
+            if str(r.get("Ma_don")) == ma_don:
+                link = r.get("Link_Drive", "")
+                b64 = r.get("Base64_Local", "")
+                name = r.get("Ten_file") or f"{ma_don}_VAT.pdf"
+                _, ext = os.path.splitext(name)
+                if b64:
+                    raw_bytes = base64.b64decode(b64)
+                    return {"type": "bytes", "bytes": raw_bytes, "ext": ext, "name": name, "link": link}
+                if link:
+                    return {"type": "link", "link": link, "name": name, "ext": ext}
     except Exception:
         pass
     return None
 
 
-def upload_vat_invoice_to_drive(ma_don, uploaded_file):
-    """Tải file PDF/ảnh hóa đơn lên trực tiếp thư mục Google Drive."""
-    drive = get_drive_service()
+def save_vat_file(ma_don, uploaded_file, drive_link=None):
     _, ext = os.path.splitext(uploaded_file.name)
-    file_name = f"{ma_don}_VAT{ext.lower()}"
+    ext = ext.lower()
+    local_path = os.path.join(LOCAL_VAT_DIR, f"{ma_don}{ext}")
     
-    # Kiểm tra nếu đã có file cũ thì xóa
-    existing = find_vat_invoice_on_drive(ma_don)
-    if existing:
-        try:
-            drive.files().delete(fileId=existing["id"], supportsAllDrives=True).execute()
-        except Exception:
-            pass
-
-    file_metadata = {
-        "name": file_name,
-        "parents": [VAT_FOLDER_ID]
-    }
-    
-    mime_type = uploaded_file.type if uploaded_file.type else "application/octet-stream"
-    media = MediaIoBaseUpload(
-        io.BytesIO(uploaded_file.getvalue()), 
-        mimetype=mime_type, 
-        resumable=False
-    )
-    
-    file = drive.files().create(
-        body=file_metadata, 
-        media_body=media, 
-        fields="id, name, webViewLink",
-        supportsAllDrives=True
-    ).execute()
-    return file
-
-
-def delete_vat_invoice_from_drive(ma_don):
-    """Xóa file hóa đơn VAT trên Google Drive theo yêu cầu."""
-    drive = get_drive_service()
-    existing = find_vat_invoice_on_drive(ma_don)
-    if existing:
-        drive.files().delete(fileId=existing["id"], supportsAllDrives=True).execute()
-        return True
-    return False
+    # Xóa file local cũ nếu có
+    for old_ext in [".pdf", ".png", ".jpg", ".jpeg"]:
+        old_p = os.path.join(LOCAL_VAT_DIR, f"{ma_don}{old_ext}")
+        if os.path.exists(old_p):
+            os.remove(old_p)
+            
+    # Lưu file local
+    file_bytes = uploaded_file.getvalue()
+    with open(local_path, "wb") as f:
+        f.write(file_bytes)
+        
+    # Đồng bộ lưu vào Google Sheets
+    try:
+        ws = get_vat_sheet()
+        rows = ws.col_values(1)
+        target_row = None
+        for i, val in enumerate(rows, start=1):
+            if val == ma_don:
+                target_row = i
+                break
+                
+        today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        b64_str = base64.b64encode(file_bytes).decode() if len(file_bytes) < 400000 else "" # Lưu base64 nếu < 400KB
+        
+        if target_row:
+            ws.update_cell(target_row, 2, uploaded_file.name)
+            ws.update_cell(target_row, 3, today_str)
+            ws.update_cell(target_row, 4, drive_link or "")
+            ws.update_cell(target_row, 5, b64_str)
+        else:
+            ws.append_row([ma_don, uploaded_file.name, today_str, drive_link or "", b64_str])
+    except Exception:
+        pass
 
 
-def download_vat_invoice_from_drive(file_id):
-    """Tải nội dung byte của file từ Google Drive về để người dùng xem/tải trực tiếp."""
-    drive = get_drive_service()
-    request = drive.files().get_media(fileId=file_id, supportsAllDrives=True)
-    fh = io.BytesIO()
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while not done:
-        _, done = downloader.next_chunk()
-    return fh.getvalue()
+def save_vat_link_only(ma_don, drive_link):
+    try:
+        ws = get_vat_sheet()
+        rows = ws.col_values(1)
+        target_row = None
+        for i, val in enumerate(rows, start=1):
+            if val == ma_don:
+                target_row = i
+                break
+        today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        if target_row:
+            ws.update_cell(target_row, 3, today_str)
+            ws.update_cell(target_row, 4, drive_link)
+        else:
+            ws.append_row([ma_don, f"{ma_don}_VAT.pdf", today_str, drive_link, ""])
+    except Exception:
+        pass
+
+
+def delete_vat_record(ma_don):
+    # Xóa file local
+    for ext in [".pdf", ".png", ".jpg", ".jpeg"]:
+        p = os.path.join(LOCAL_VAT_DIR, f"{ma_don}{ext}")
+        if os.path.exists(p):
+            os.remove(p)
+            
+    # Xóa dòng trên Sheet
+    try:
+        ws = get_vat_sheet()
+        rows = ws.col_values(1)
+        for i, val in enumerate(rows, start=1):
+            if val == ma_don:
+                ws.delete_rows(i)
+                break
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -748,34 +785,35 @@ def render_order_detail(ma_don):
                                 file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
                                 key=f"dl_{ma_don}", use_container_width=True)
         with c3:
-            drive_vat_file = find_vat_invoice_on_drive(ma_don)
-            if drive_vat_file:
-                vat_bytes = download_vat_invoice_from_drive(drive_vat_file["id"])
-                file_ext = os.path.splitext(drive_vat_file["name"])[1]
-                mime_t = "application/pdf" if file_ext.lower() == ".pdf" else f"image/{file_ext.lower().replace('.', '')}"
-                st.download_button("📄 Tải VAT (Drive)", data=vat_bytes,
-                                    file_name=drive_vat_file["name"], mime=mime_t,
-                                    key=f"dl_vat_{ma_don}", use_container_width=True)
+            vat_rec = get_vat_record(ma_don)
+            if vat_rec:
+                if vat_rec.get("bytes"):
+                    file_ext = vat_rec.get("ext", ".pdf")
+                    mime_t = "application/pdf" if file_ext.lower() == ".pdf" else f"image/{file_ext.lower().replace('.', '')}"
+                    st.download_button("📄 Tải VAT", data=vat_rec["bytes"],
+                                        file_name=vat_rec.get("name", f"{ma_don}_VAT{file_ext}"), mime=mime_t,
+                                        key=f"dl_vat_{ma_don}", use_container_width=True)
+                elif vat_rec.get("link"):
+                    st.link_button("📄 Mở VAT (Drive)", url=vat_rec["link"], use_container_width=True)
             else:
                 st.button("☁️ Hóa đơn (Chưa có)", disabled=True, use_container_width=True)
 
-        # KHU VỰC TẢI LÊN & QUẢN LÝ / XÓA HÓA ĐƠN VAT TRÊN GOOGLE DRIVE
-        with st.expander("☁️ **Quản lý Hóa đơn VAT trên Google Drive (PDF, PNG, JPG)**", expanded=False):
-            drive_vat_file = find_vat_invoice_on_drive(ma_don)
-            if drive_vat_file:
-                st.info(f"✅ Đơn hàng này đã có hóa đơn: **{drive_vat_file['name']}**")
-                if st.button("🗑️ Xóa hóa đơn hiện tại khỏi Google Drive", key=f"btn_del_vat_{ma_don}"):
-                    with st.spinner("Đang xóa hóa đơn khỏi Google Drive..."):
-                        try:
-                            delete_vat_invoice_from_drive(ma_don)
-                            st.success(f"Đã xóa hóa đơn VAT của đơn **{ma_don}**.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Lỗi khi xóa file: {e}")
+        # KHU VỰC QUẢN LÝ / TẢI LÊN / XÓA HÓA ĐƠN VAT
+        with st.expander("☁️ **Quản lý & Lưu trữ Hóa đơn VAT**", expanded=False):
+            vat_rec = get_vat_record(ma_don)
+            if vat_rec:
+                st.info(f"✅ Đơn hàng **{ma_don}** đã được lưu trữ hóa đơn VAT.")
+                if vat_rec.get("link"):
+                    st.caption(f"🔗 Link Drive: [{vat_rec['link']}]({vat_rec['link']})")
+                    
+                if st.button("🗑️ Xóa hóa đơn này", key=f"btn_del_vat_{ma_don}"):
+                    delete_vat_record(ma_don)
+                    st.success(f"Đã xóa hóa đơn VAT của đơn **{ma_don}**.")
+                    st.rerun()
                 st.markdown("---")
-                st.caption("Hoặc chọn tệp mới bên dưới để **Tải đè / Thay thế**:")
+                st.caption("Tải tệp mới bên dưới để **Cập nhật / Thay thế**:")
             else:
-                st.caption("Tệp tải lên sẽ được tự động lưu vĩnh viễn vào thư mục Google Drive **Hoa_Don_VAT_VIFEX**.")
+                st.caption("Chọn tệp PDF hoặc ảnh hóa đơn VAT để lưu trữ cho đơn hàng này.")
 
             uploaded_vat = st.file_uploader(
                 f"Chọn tệp hóa đơn cho đơn {ma_don}", 
@@ -783,16 +821,24 @@ def render_order_detail(ma_don):
                 key=f"vat_uploader_{ma_don}",
                 label_visibility="collapsed"
             )
-            if uploaded_vat is not None:
-                if st.button("⬆️ Tải lên Google Drive", key=f"btn_save_vat_{ma_don}", type="primary"):
-                    with st.spinner("Đang tải tệp lên Google Drive..."):
-                        try:
-                            upload_vat_invoice_to_drive(ma_don, uploaded_vat)
-                            st.success(f"Đã lưu thành công hóa đơn VAT lên Google Drive cho đơn **{ma_don}**!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Lỗi Google Drive: {e}")
-                            st.info("Kiểm tra lại: (1) Đã bật Google Drive API trên Google Cloud Console chưa; (2) Thư mục đã được Share quyền Editor cho Service Account chưa.")
+            
+            drive_link_input = st.text_input(
+                "Hoặc dán Link Google Drive hóa đơn (tùy chọn):",
+                placeholder="https://drive.google.com/file/d/...",
+                key=f"link_input_{ma_don}"
+            )
+            
+            if st.button("⬆️ Lưu Hóa đơn VAT", key=f"btn_save_vat_{ma_don}", type="primary"):
+                if uploaded_vat is not None:
+                    save_vat_file(ma_don, uploaded_vat, drive_link=drive_link_input)
+                    st.success(f"Đã lưu thành công hóa đơn VAT cho đơn **{ma_don}**!")
+                    st.rerun()
+                elif drive_link_input:
+                    save_vat_link_only(ma_don, drive_link_input)
+                    st.success(f"Đã liên kết link Drive hóa đơn cho đơn **{ma_don}**!")
+                    st.rerun()
+                else:
+                    st.warning("Vui lòng chọn tệp tải lên hoặc dán link Google Drive.")
 
         st.write("")
         if st.button("← Đóng xem chi tiết", key=f"close_{ma_don}", use_container_width=True):
