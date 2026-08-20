@@ -40,7 +40,7 @@ ORDER_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao", "Đã giao"]
 VALID_ORDER_STATUSES = ["Gửi kho", "Đang giao", "Đang giao hàng", "Đã giao", "Đã giao hàng", "Đã nhận hàng"]
 
 # 2. Trạng thái thanh toán & VAT
-PAYMENT_STATUSES = ["Chưa thanh toán", "TT - Nháp VAT", "TT - không VAT", "TT - Đã VAT"]
+PAYMENT_STATUSES = ["Chưa thanh toán", "TT - Chưa VAT", "TT - Nháp VAT", "TT - không VAT", "TT - Đã VAT"]
 
 VAT_FOLDER_ID = "1HZiL99pNqV31u6Z8q5EqeoyjFJkPJFji"
 DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLfDcPZIs2QEshLL_uYSQ6-N4CnSbJhmorx3EI_28QZGd1EnNUEF9yrzh3Zx8M3bgqNw/exec"
@@ -86,7 +86,7 @@ def get_qr_bank_image():
     return None
 
 # ---------------------------------------------------------------------------
-# CSS RESPONSIVE & BỐ CỤC CHUẨN (KHÔI PHỤC MÀU SẮC THẺ SỐ BẢN CŨ)
+# CSS RESPONSIVE & BỐ CỤC GIAO DIỆN
 # ---------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -304,7 +304,7 @@ div.stButton > button[kind="primary"] {
     margin-top: 4px;
 }
 
-/* CSS để ẩn nút bấm Streamlit nhưng phủ lên toàn bộ thẻ để bấm được */
+/* Nút bấm Streamlit tàng hình phủ lên toàn bộ thẻ để bấm được */
 div[class*="st-key-btn_filter_"] {
     margin-top: -65px;
     opacity: 0;
@@ -408,7 +408,9 @@ def order_status_badge_html(status):
 
 def payment_status_badge_html(status):
     st_clean = safe_str(status)
-    if "nháp vat" in st_clean.lower():
+    if "chưa vat" in st_clean.lower():
+        return f'<span class="badge" style="background:#FEF3C7;color:#D97706;border:1px solid #FDE68A;">TT - Chưa VAT</span>'
+    elif "nháp vat" in st_clean.lower():
         return f'<span class="badge" style="background:#FFF0E5;color:#EA580C;border:1px solid #FED7AA;">TT - Nháp VAT</span>'
     elif "không vat" in st_clean.lower():
         return f'<span class="badge" style="background:#DCFAF4;color:#0D9488;border:1px solid #99F6E4;">TT - không VAT</span>'
@@ -726,7 +728,7 @@ def delete_vat_record(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# Ảnh phiếu xuất đơn hàng
+# Ảnh phiếu xuất đơn hàng (MST góc phải + QR Vietinbank)
 # ---------------------------------------------------------------------------
 @st.cache_resource
 def get_font(size):
@@ -1131,7 +1133,7 @@ def render_order_detail_inline(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# 1. TRANG CHỦ (KHÔI PHỤC HOÀN TOÀN MÀU NỀN, MÀU VIỀN, SỐ TO ĐẬM BẢN CŨ)
+# 1. TRANG CHỦ (BỔ SUNG TT - CHƯA VAT & GIỮ NGUYÊN MÀU SẮC ĐẸP BẢN CŨ)
 # ---------------------------------------------------------------------------
 if nav == "🏠 Trang chủ":
     pending_delivery = don_hang_df[don_hang_df["Trang_thai_Don"].isin(["Lên đơn", "Gửi kho", "Đang giao"])] if not don_hang_df.empty else pd.DataFrame()
@@ -1144,7 +1146,7 @@ if nav == "🏠 Trang chủ":
         counts_order = don_hang_df["Trang_thai_Don"].value_counts()
         counts_pay = don_hang_df["Trang_thai_TT"].value_counts()
 
-        # HÀNG 1: TIẾN ĐỘ ĐƠN HÀNG (MÀU SẮC CHUẨN BẢN CŨ)
+        # HÀNG 1: TIẾN ĐỘ ĐƠN HÀNG (4 Ô)
         st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-bottom:6px;'>📦 TIẾN ĐỘ VẬN HÀNH ĐƠN HÀNG (Nhấn ô để lọc danh sách)</div>", unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns(4)
 
@@ -1181,15 +1183,16 @@ if nav == "🏠 Trang chủ":
                         st.rerun()
 
         st.write("")
-        # HÀNG 2: TIẾN ĐỘ THANH TOÁN & VAT (MÀU SẮC CHUẨN BẢN CŨ)
+        # HÀNG 2: TIẾN ĐỘ THANH TOÁN & VAT (5 Ô: CHƯA TT, CHƯA VAT, NHÁP VAT, KHÔNG VAT, ĐÃ VAT)
         st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-bottom:6px;'>💳 TIẾN ĐỘ THANH TOÁN & HÓA ĐƠN VAT (Nhấn ô để lọc danh sách)</div>", unsafe_allow_html=True)
-        p1, p2, p3, p4 = st.columns(4)
+        p1, p2, p3, p4, p5 = st.columns(5)
 
         pay_metric_defs = [
             ("Chưa thanh toán", "Chưa TT", int(counts_pay.get('Chưa thanh toán', 0)), "#FFEBEF", "#FECDD3", "#E11D48", "#881337", p1),
-            ("TT - Nháp VAT", "Nháp VAT", int(counts_pay.get('TT - Nháp VAT', 0)), "#FFF0E5", "#FED7AA", "#EA580C", "#431407", p2),
-            ("TT - không VAT", "Không VAT", int(counts_pay.get('TT - không VAT', 0)), "#DCFAF4", "#99F6E4", "#0D9488", "#0F766E", p3),
-            ("TT - Đã VAT", "Đã VAT", int(counts_pay.get('TT - Đã VAT', 0)), "#E5F0EC", "#C4E3D7", "#2D6A4F", "#1F2937", p4)
+            ("TT - Chưa VAT", "Chưa VAT", int(counts_pay.get('TT - Chưa VAT', 0)), "#FEF3C7", "#FDE68A", "#D97706", "#92400E", p2),
+            ("TT - Nháp VAT", "Nháp VAT", int(counts_pay.get('TT - Nháp VAT', 0)), "#FFF0E5", "#FED7AA", "#EA580C", "#431407", p3),
+            ("TT - không VAT", "Không VAT", int(counts_pay.get('TT - không VAT', 0)), "#DCFAF4", "#99F6E4", "#0D9488", "#0F766E", p4),
+            ("TT - Đã VAT", "Đã VAT", int(counts_pay.get('TT - Đã VAT', 0)), "#E5F0EC", "#C4E3D7", "#2D6A4F", "#1F2937", p5)
         ]
 
         for full_pay_st, short_name, count_val, bg_c, bdr_c, num_c, label_c, col_obj in pay_metric_defs:
