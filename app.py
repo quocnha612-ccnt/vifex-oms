@@ -40,7 +40,15 @@ ORDER_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao", "Đã giao"]
 VALID_ORDER_STATUSES = ["Gửi kho", "Đang giao", "Đang giao hàng", "Đã giao", "Đã giao hàng", "Đã nhận hàng"]
 
 # 2. Trạng thái thanh toán & VAT
-PAYMENT_STATUSES = ["Chưa thanh toán", "TT - Chưa VAT", "TT - Nháp VAT", "TT - không VAT", "TT - Đã VAT"]
+PAYMENT_STATUSES = [
+    "Chưa thanh toán",
+    "Chưa TT - Nháp",
+    "Chưa TT - Đã VAT",
+    "TT - Chưa VAT",
+    "TT - Nháp VAT",
+    "TT - không VAT",
+    "TT - Đã VAT"
+]
 
 VAT_FOLDER_ID = "1HZiL99pNqV31u6Z8q5EqeoyjFJkPJFji"
 DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLfDcPZIs2QEshLL_uYSQ6-N4CnSbJhmorx3EI_28QZGd1EnNUEF9yrzh3Zx8M3bgqNw/exec"
@@ -283,25 +291,32 @@ div.stButton > button[kind="primary"] {
 .card-wrapper {
     position: relative;
     border-radius: 14px;
-    padding: 10px 12px;
+    padding: 8px 10px;
     text-align: left;
     transition: all 0.15s ease;
     cursor: pointer;
     box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    min-height: 66px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 .card-wrapper:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(0,0,0,0.06);
 }
 .card-num {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 800;
     line-height: 1.1;
 }
 .card-title {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    margin-top: 4px;
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Nút bấm Streamlit tàng hình phủ lên toàn bộ thẻ để bấm được */
@@ -360,10 +375,10 @@ div[class*="st-key-btn_filter_"] button {
     }
     
     .card-num {
-        font-size: 20px !important;
+        font-size: 18px !important;
     }
     .card-title {
-        font-size: 11.5px !important;
+        font-size: 10.5px !important;
     }
 }
 </style>
@@ -407,16 +422,22 @@ def order_status_badge_html(status):
 
 
 def payment_status_badge_html(status):
-    st_clean = safe_str(status)
-    if "chưa vat" in st_clean.lower():
+    st_clean = safe_str(status).strip()
+    s_low = st_clean.lower()
+    
+    if "chưa tt - nháp" in s_low:
+        return f'<span class="badge" style="background:#FFF1F2;color:#BE123C;border:1px solid #FECDD3;">Chưa TT - Nháp</span>'
+    elif "chưa tt - đã vat" in s_low or "chưa tt - vat" in s_low:
+        return f'<span class="badge" style="background:#FDF2F8;color:#DB2777;border:1px solid #FBCFE8;">Chưa TT - Đã VAT</span>'
+    elif "tt - chưa vat" in s_low:
         return f'<span class="badge" style="background:#FEF3C7;color:#D97706;border:1px solid #FDE68A;">TT - Chưa VAT</span>'
-    elif "nháp vat" in st_clean.lower():
+    elif "tt - nháp vat" in s_low:
         return f'<span class="badge" style="background:#FFF0E5;color:#EA580C;border:1px solid #FED7AA;">TT - Nháp VAT</span>'
-    elif "không vat" in st_clean.lower():
+    elif "không vat" in s_low:
         return f'<span class="badge" style="background:#DCFAF4;color:#0D9488;border:1px solid #99F6E4;">TT - không VAT</span>'
-    elif "đã vat" in st_clean.lower():
+    elif "tt - đã vat" in s_low:
         return f'<span class="badge" style="background:#E5F0EC;color:#2D6A4F;border:1px solid #C4E3D7;">TT - Đã VAT</span>'
-    elif any(k in st_clean.lower() for k in ["chưa thanh toán", "chưa tt"]):
+    elif any(k in s_low for k in ["chưa thanh toán", "chưa tt"]):
         return f'<span class="badge" style="background:#FFEBEF;color:#E11D48;border:1px solid #FECDD3;">Chưa TT</span>'
     return f'<span class="badge" style="background:{GRAY_BG};color:{GRAY_TEXT}">{status}</span>'
 
@@ -502,6 +523,9 @@ def load_data():
     if "Trang_thai_TT" not in don_hang_df.columns:
         def map_payment_status(r):
             st_val = safe_str(r.get("Trang_thai"))
+            for p in PAYMENT_STATUSES:
+                if p.lower() == st_val.lower():
+                    return p
             for p in PAYMENT_STATUSES:
                 if p.lower() in st_val.lower():
                     return p
@@ -1133,7 +1157,7 @@ def render_order_detail_inline(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# 1. TRANG CHỦ (BỔ SUNG TT - CHƯA VAT & GIỮ NGUYÊN MÀU SẮC ĐẸP BẢN CŨ)
+# 1. TRANG CHỦ (ĐẦY ĐỦ 7 TRẠNG THÁI THANH TOÁN + MÀU SẮC ĐẸP BẢN CŨ)
 # ---------------------------------------------------------------------------
 if nav == "🏠 Trang chủ":
     pending_delivery = don_hang_df[don_hang_df["Trang_thai_Don"].isin(["Lên đơn", "Gửi kho", "Đang giao"])] if not don_hang_df.empty else pd.DataFrame()
@@ -1183,19 +1207,53 @@ if nav == "🏠 Trang chủ":
                         st.rerun()
 
         st.write("")
-        # HÀNG 2: TIẾN ĐỘ THANH TOÁN & VAT (5 Ô: CHƯA TT, CHƯA VAT, NHÁP VAT, KHÔNG VAT, ĐÃ VAT)
+        # HÀNG 2: TIẾN ĐỘ THANH TOÁN & VAT (CHIA ĐỀU GỌN GÀNG)
         st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-bottom:6px;'>💳 TIẾN ĐỘ THANH TOÁN & HÓA ĐƠN VAT (Nhấn ô để lọc danh sách)</div>", unsafe_allow_html=True)
-        p1, p2, p3, p4, p5 = st.columns(5)
-
-        pay_metric_defs = [
-            ("Chưa thanh toán", "Chưa TT", int(counts_pay.get('Chưa thanh toán', 0)), "#FFEBEF", "#FECDD3", "#E11D48", "#881337", p1),
-            ("TT - Chưa VAT", "Chưa VAT", int(counts_pay.get('TT - Chưa VAT', 0)), "#FEF3C7", "#FDE68A", "#D97706", "#92400E", p2),
-            ("TT - Nháp VAT", "Nháp VAT", int(counts_pay.get('TT - Nháp VAT', 0)), "#FFF0E5", "#FED7AA", "#EA580C", "#431407", p3),
-            ("TT - không VAT", "Không VAT", int(counts_pay.get('TT - không VAT', 0)), "#DCFAF4", "#99F6E4", "#0D9488", "#0F766E", p4),
-            ("TT - Đã VAT", "Đã VAT", int(counts_pay.get('TT - Đã VAT', 0)), "#E5F0EC", "#C4E3D7", "#2D6A4F", "#1F2937", p5)
+        
+        # Hàng 2.1: Nhóm Chưa thanh toán (3 ô)
+        p_row1_cols = st.columns(3)
+        pay_row1_defs = [
+            ("Chưa thanh toán", "Chưa TT", int(counts_pay.get('Chưa thanh toán', 0)), "#FFEBEF", "#FECDD3", "#E11D48", "#881337", p_row1_cols[0]),
+            ("Chưa TT - Nháp", "Chưa TT - Nháp", int(counts_pay.get('Chưa TT - Nháp', 0)), "#FFF1F2", "#FECDD3", "#BE123C", "#881337", p_row1_cols[1]),
+            ("Chưa TT - Đã VAT", "Chưa TT - Đã VAT", int(counts_pay.get('Chưa TT - Đã VAT', 0)), "#FDF2F8", "#FBCFE8", "#DB2777", "#831843", p_row1_cols[2]),
         ]
 
-        for full_pay_st, short_name, count_val, bg_c, bdr_c, num_c, label_c, col_obj in pay_metric_defs:
+        for full_pay_st, short_name, count_val, bg_c, bdr_c, num_c, label_c, col_obj in pay_row1_defs:
+            is_active = (st.session_state.home_filter_category == "pay" and st.session_state.home_filter_value == full_pay_st)
+            border_style = f"3px solid {num_c}" if is_active else f"1.5px solid {bdr_c}"
+            active_badge = " ✔️" if is_active else ""
+            
+            with col_obj:
+                html_card = f"""
+                <div class="card-wrapper" style="background-color: {bg_c}; border: {border_style};">
+                    <div class="card-num" style="color: {num_c};">{count_val}</div>
+                    <div class="card-title" style="color: {label_c};">{short_name}{active_badge}</div>
+                </div>
+                """
+                st.markdown(html_card, unsafe_allow_html=True)
+                
+                with st.container(key=f"btn_filter_pay_{short_name}"):
+                    if st.button(short_name, key=f"btn_act_pay_{short_name}", use_container_width=True):
+                        if is_active:
+                            st.session_state.home_filter_category = None
+                            st.session_state.home_filter_value = None
+                        else:
+                            st.session_state.home_filter_category = "pay"
+                            st.session_state.home_filter_value = full_pay_st
+                        st.session_state.selected_order = None
+                        st.rerun()
+
+        st.write("")
+        # Hàng 2.2: Nhóm Đã thanh toán (4 ô)
+        p_row2_cols = st.columns(4)
+        pay_row2_defs = [
+            ("TT - Chưa VAT", "TT - Chưa VAT", int(counts_pay.get('TT - Chưa VAT', 0)), "#FEF3C7", "#FDE68A", "#D97706", "#92400E", p_row2_cols[0]),
+            ("TT - Nháp VAT", "TT - Nháp VAT", int(counts_pay.get('TT - Nháp VAT', 0)), "#FFF0E5", "#FED7AA", "#EA580C", "#431407", p_row2_cols[1]),
+            ("TT - không VAT", "TT - không VAT", int(counts_pay.get('TT - không VAT', 0)), "#DCFAF4", "#99F6E4", "#0D9488", "#0F766E", p_row2_cols[2]),
+            ("TT - Đã VAT", "TT - Đã VAT", int(counts_pay.get('TT - Đã VAT', 0)), "#E5F0EC", "#C4E3D7", "#2D6A4F", "#1F2937", p_row2_cols[3])
+        ]
+
+        for full_pay_st, short_name, count_val, bg_c, bdr_c, num_c, label_c, col_obj in pay_row2_defs:
             is_active = (st.session_state.home_filter_category == "pay" and st.session_state.home_filter_value == full_pay_st)
             border_style = f"3px solid {num_c}" if is_active else f"1.5px solid {bdr_c}"
             active_badge = " ✔️" if is_active else ""
@@ -1615,7 +1673,8 @@ elif nav == "📊 Dashboard":
         doanh_thu = period["Thanh_tien"].sum()
         san_luong = period["San_luong_xuat_kho"].sum()
         so_don = period["Ma_don"].nunique()
-        cong_no_count = don_hang_df[don_hang_df["Trang_thai_TT"] == "Chưa thanh toán"].shape[0]
+        # Đơn chưa thanh toán: tính các đơn thuộc nhóm Chưa TT
+        cong_no_count = don_hang_df[don_hang_df["Trang_thai_TT"].str.startswith("Chưa", na=False)].shape[0]
 
         c1, c2 = st.columns(2)
         c1.markdown(f"""
