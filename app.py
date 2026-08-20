@@ -1135,13 +1135,12 @@ if nav == "🏠 Trang chủ":
             is_active = (st.session_state.home_filter_category == "order" and st.session_state.home_filter_value == st_name)
             border_style = f"3px solid {text_c}" if is_active else f"1px solid {bdr_c}"
             active_indicator = " ✔️" if is_active else ""
+            btn_label = f"**{count_val}**\n\n{st_name}{active_indicator}"
             
             with col_obj:
                 with st.container(key=f"btn_card_order_{st_name}"):
                     if st.button(
-                        f"**{count_val}**
-
-{st_name}{active_indicator}", 
+                        btn_label, 
                         key=f"card_order_{st_name}", 
                         use_container_width=True
                     ):
@@ -1169,13 +1168,12 @@ if nav == "🏠 Trang chủ":
         for full_pay_st, short_name, count_val, bg_c, bdr_c, text_c, col_obj in pay_metric_defs:
             is_active = (st.session_state.home_filter_category == "pay" and st.session_state.home_filter_value == full_pay_st)
             active_indicator = " ✔️" if is_active else ""
+            btn_label = f"**{count_val}**\n\n{short_name}{active_indicator}"
             
             with col_obj:
                 with st.container(key=f"btn_card_pay_{short_name}"):
                     if st.button(
-                        f"**{count_val}**
-
-{short_name}{active_indicator}", 
+                        btn_label, 
                         key=f"card_pay_{short_name}", 
                         use_container_width=True
                     ):
@@ -1562,7 +1560,7 @@ elif nav == "💰 Lương Sale":
             st.dataframe(by_sp, hide_index=True, use_container_width=True)
 
 # ---------------------------------------------------------------------------
-# 5. DASHBOARD TỔNG QUAN
+# 5. DASHBOARD TỔNG QUAN (TÍNH THEO TIẾN ĐỘ ĐƠN HỢP LỆ VÀ CÔNG NỢ)
 # ---------------------------------------------------------------------------
 elif nav == "📊 Dashboard":
     banner("Tổng quan")
