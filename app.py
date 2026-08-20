@@ -86,7 +86,7 @@ def get_qr_bank_image():
     return None
 
 # ---------------------------------------------------------------------------
-# CSS RESPONSIVE & NÚT THẺ THỐNG KÊ TƯƠNG TÁC ĐỒNG BỘ
+# CSS RESPONSIVE & BỐ CỤC CHUẨN (KHÔI PHỤC MÀU SẮC THẺ SỐ BẢN CŨ)
 # ---------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -279,23 +279,40 @@ div.stButton > button[kind="primary"] {
     font-weight: 600 !important;
 }
 
-/* Nút Metric Box Interactive */
-div[class*="st-key-btn_card_"] button {
-    height: 72px !important;
-    padding: 6px 10px !important;
-    border-radius: 12px !important;
-    text-align: left !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-    align-items: flex-start !important;
-    line-height: 1.3 !important;
-    font-family: inherit !important;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.03) !important;
-}
-div[class*="st-key-btn_card_"] button:hover {
-    transform: translateY(-2px);
+/* STYLING RIÊNG CHO TỪNG THẺ STATS NỀN MÀU / SỐ TO / CHỮ RÕ NHƯ BẢN CŨ */
+.card-wrapper {
+    position: relative;
+    border-radius: 14px;
+    padding: 10px 12px;
+    text-align: left;
     transition: all 0.15s ease;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+}
+.card-wrapper:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
+.card-num {
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1.1;
+}
+.card-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+/* CSS để ẩn nút bấm Streamlit nhưng phủ lên toàn bộ thẻ để bấm được */
+div[class*="st-key-btn_filter_"] {
+    margin-top: -65px;
+    opacity: 0;
+}
+div[class*="st-key-btn_filter_"] button {
+    height: 65px !important;
+    width: 100% !important;
+    cursor: pointer !important;
 }
 
 /* Mobile */
@@ -341,6 +358,13 @@ div[class*="st-key-btn_card_"] button:hover {
         height: 38px !important;
         white-space: nowrap !important;
     }
+    
+    .card-num {
+        font-size: 20px !important;
+    }
+    .card-title {
+        font-size: 11.5px !important;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -372,26 +396,26 @@ def banner(title, subtitle=None, highlight_text=None):
 def order_status_badge_html(status):
     st_clean = safe_str(status)
     if "lên đơn" in st_clean.lower():
-        return f'<span class="badge" style="background:{BLUE_BG};color:{BLUE}">Lên đơn</span>'
+        return f'<span class="badge" style="background:#EEF6FF;color:#1D4ED8;border:1px solid #B9D7FE;">Lên đơn</span>'
     elif "gửi kho" in st_clean.lower():
-        return f'<span class="badge" style="background:{PURPLE_BG};color:{PURPLE}">Gửi kho</span>'
+        return f'<span class="badge" style="background:#F5EEFF;color:#7C3AED;border:1px solid #E0CFFE;">Gửi kho</span>'
     elif any(k in st_clean.lower() for k in ["đang giao", "giao hàng"]):
-        return f'<span class="badge" style="background:{AMBER_BG};color:{AMBER}">Đang giao</span>'
+        return f'<span class="badge" style="background:#FFF6DA;color:#D97706;border:1px solid #FDE08B;">Đang giao</span>'
     elif any(k in st_clean.lower() for k in ["đã giao", "đã nhận"]):
-        return f'<span class="badge" style="background:{GREEN_BG};color:{GREEN}">Đã giao</span>'
+        return f'<span class="badge" style="background:#E6F4EA;color:#065F46;border:1px solid #BBE1C7;">Đã giao</span>'
     return f'<span class="badge" style="background:{GRAY_BG};color:{GRAY_TEXT}">{status}</span>'
 
 
 def payment_status_badge_html(status):
     st_clean = safe_str(status)
     if "nháp vat" in st_clean.lower():
-        return f'<span class="badge" style="background:{ORANGE_BG};color:{ORANGE}">TT - Nháp VAT</span>'
+        return f'<span class="badge" style="background:#FFF0E5;color:#EA580C;border:1px solid #FED7AA;">TT - Nháp VAT</span>'
     elif "không vat" in st_clean.lower():
-        return f'<span class="badge" style="background:{TEAL_BG};color:{TEAL}">TT - không VAT</span>'
+        return f'<span class="badge" style="background:#DCFAF4;color:#0D9488;border:1px solid #99F6E4;">TT - không VAT</span>'
     elif "đã vat" in st_clean.lower():
-        return f'<span class="badge" style="background:{GREEN_BG};color:{GREEN}">TT - Đã VAT</span>'
+        return f'<span class="badge" style="background:#E5F0EC;color:#2D6A4F;border:1px solid #C4E3D7;">TT - Đã VAT</span>'
     elif any(k in st_clean.lower() for k in ["chưa thanh toán", "chưa tt"]):
-        return f'<span class="badge" style="background:{RED_BG};color:{RED}">Chưa TT</span>'
+        return f'<span class="badge" style="background:#FFEBEF;color:#E11D48;border:1px solid #FECDD3;">Chưa TT</span>'
     return f'<span class="badge" style="background:{GRAY_BG};color:{GRAY_TEXT}">{status}</span>'
 
 
@@ -1107,7 +1131,7 @@ def render_order_detail_inline(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# 1. TRANG CHỦ (TÍCH HỢP TÍNH NĂNG NHẤN VÀO TỪNG Ô THỐNG KÊ ĐỂ LỌC ĐƠN HÀNG)
+# 1. TRANG CHỦ (KHÔI PHỤC HOÀN TOÀN MÀU NỀN, MÀU VIỀN, SỐ TO ĐẬM BẢN CŨ)
 # ---------------------------------------------------------------------------
 if nav == "🏠 Trang chủ":
     pending_delivery = don_hang_df[don_hang_df["Trang_thai_Don"].isin(["Lên đơn", "Gửi kho", "Đang giao"])] if not don_hang_df.empty else pd.DataFrame()
@@ -1120,30 +1144,33 @@ if nav == "🏠 Trang chủ":
         counts_order = don_hang_df["Trang_thai_Don"].value_counts()
         counts_pay = don_hang_df["Trang_thai_TT"].value_counts()
 
-        # HÀNG 1: TIẾN ĐỘ ĐƠN HÀNG (BẤM VÀO ĐỂ LỌC TRỰC TIẾP)
+        # HÀNG 1: TIẾN ĐỘ ĐƠN HÀNG (MÀU SẮC CHUẨN BẢN CŨ)
         st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-bottom:6px;'>📦 TIẾN ĐỘ VẬN HÀNH ĐƠN HÀNG (Nhấn ô để lọc danh sách)</div>", unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns(4)
 
         order_metric_defs = [
-            ("Lên đơn", int(counts_order.get('Lên đơn', 0)), BLUE_BG, "#BFDBFE", BLUE, c1),
-            ("Gửi kho", int(counts_order.get('Gửi kho', 0)), PURPLE_BG, "#DDD6FE", PURPLE, c2),
-            ("Đang giao", int(counts_order.get('Đang giao', 0)), AMBER_BG, "#FDE68A", AMBER, c3),
-            ("Đã giao", int(counts_order.get('Đã giao', 0)), GREEN_BG, "#A7F3D0", GREEN, c4)
+            ("Lên đơn", int(counts_order.get('Lên đơn', 0)), "#EEF6FF", "#B9D7FE", "#1D4ED8", "#1E3A8A", c1),
+            ("Gửi kho", int(counts_order.get('Gửi kho', 0)), "#F5EEFF", "#E0CFFE", "#7C3AED", "#374151", c2),
+            ("Đang giao", int(counts_order.get('Đang giao', 0)), "#FFF6DA", "#FDE08B", "#D97706", "#374151", c3),
+            ("Đã giao", int(counts_order.get('Đã giao', 0)), "#E6F4EA", "#BBE1C7", "#065F46", "#1F2937", c4)
         ]
 
-        for st_name, count_val, bg_c, bdr_c, text_c, col_obj in order_metric_defs:
+        for st_name, count_val, bg_c, bdr_c, num_c, label_c, col_obj in order_metric_defs:
             is_active = (st.session_state.home_filter_category == "order" and st.session_state.home_filter_value == st_name)
-            border_style = f"3px solid {text_c}" if is_active else f"1px solid {bdr_c}"
-            active_indicator = " ✔️" if is_active else ""
-            btn_label = f"**{count_val}**\n\n{st_name}{active_indicator}"
+            border_style = f"3px solid {num_c}" if is_active else f"1.5px solid {bdr_c}"
+            active_badge = " ✔️" if is_active else ""
             
             with col_obj:
-                with st.container(key=f"btn_card_order_{st_name}"):
-                    if st.button(
-                        btn_label, 
-                        key=f"card_order_{st_name}", 
-                        use_container_width=True
-                    ):
+                html_card = f"""
+                <div class="card-wrapper" style="background-color: {bg_c}; border: {border_style};">
+                    <div class="card-num" style="color: {num_c};">{count_val}</div>
+                    <div class="card-title" style="color: {label_c};">{st_name}{active_badge}</div>
+                </div>
+                """
+                st.markdown(html_card, unsafe_allow_html=True)
+                
+                with st.container(key=f"btn_filter_order_{st_name}"):
+                    if st.button(st_name, key=f"btn_act_order_{st_name}", use_container_width=True):
                         if is_active:
                             st.session_state.home_filter_category = None
                             st.session_state.home_filter_value = None
@@ -1154,29 +1181,33 @@ if nav == "🏠 Trang chủ":
                         st.rerun()
 
         st.write("")
-        # HÀNG 2: TIẾN ĐỘ THANH TOÁN & VAT (BẤM VÀO ĐỂ LỌC TRỰC TIẾP)
+        # HÀNG 2: TIẾN ĐỘ THANH TOÁN & VAT (MÀU SẮC CHUẨN BẢN CŨ)
         st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-bottom:6px;'>💳 TIẾN ĐỘ THANH TOÁN & HÓA ĐƠN VAT (Nhấn ô để lọc danh sách)</div>", unsafe_allow_html=True)
         p1, p2, p3, p4 = st.columns(4)
 
         pay_metric_defs = [
-            ("Chưa thanh toán", "Chưa TT", int(counts_pay.get('Chưa thanh toán', 0)), RED_BG, "#FECACA", RED, p1),
-            ("TT - Nháp VAT", "Nháp VAT", int(counts_pay.get('TT - Nháp VAT', 0)), ORANGE_BG, "#FED7AA", ORANGE, p2),
-            ("TT - không VAT", "Không VAT", int(counts_pay.get('TT - không VAT', 0)), TEAL_BG, "#99F6E4", TEAL, p3),
-            ("TT - Đã VAT", "Đã VAT", int(counts_pay.get('TT - Đã VAT', 0)), GREEN_BG, "#A7F3D0", GREEN, p4)
+            ("Chưa thanh toán", "Chưa TT", int(counts_pay.get('Chưa thanh toán', 0)), "#FFEBEF", "#FECDD3", "#E11D48", "#881337", p1),
+            ("TT - Nháp VAT", "Nháp VAT", int(counts_pay.get('TT - Nháp VAT', 0)), "#FFF0E5", "#FED7AA", "#EA580C", "#431407", p2),
+            ("TT - không VAT", "Không VAT", int(counts_pay.get('TT - không VAT', 0)), "#DCFAF4", "#99F6E4", "#0D9488", "#0F766E", p3),
+            ("TT - Đã VAT", "Đã VAT", int(counts_pay.get('TT - Đã VAT', 0)), "#E5F0EC", "#C4E3D7", "#2D6A4F", "#1F2937", p4)
         ]
 
-        for full_pay_st, short_name, count_val, bg_c, bdr_c, text_c, col_obj in pay_metric_defs:
+        for full_pay_st, short_name, count_val, bg_c, bdr_c, num_c, label_c, col_obj in pay_metric_defs:
             is_active = (st.session_state.home_filter_category == "pay" and st.session_state.home_filter_value == full_pay_st)
-            active_indicator = " ✔️" if is_active else ""
-            btn_label = f"**{count_val}**\n\n{short_name}{active_indicator}"
+            border_style = f"3px solid {num_c}" if is_active else f"1.5px solid {bdr_c}"
+            active_badge = " ✔️" if is_active else ""
             
             with col_obj:
-                with st.container(key=f"btn_card_pay_{short_name}"):
-                    if st.button(
-                        btn_label, 
-                        key=f"card_pay_{short_name}", 
-                        use_container_width=True
-                    ):
+                html_card = f"""
+                <div class="card-wrapper" style="background-color: {bg_c}; border: {border_style};">
+                    <div class="card-num" style="color: {num_c};">{count_val}</div>
+                    <div class="card-title" style="color: {label_c};">{short_name}{active_badge}</div>
+                </div>
+                """
+                st.markdown(html_card, unsafe_allow_html=True)
+                
+                with st.container(key=f"btn_filter_pay_{short_name}"):
+                    if st.button(short_name, key=f"btn_act_pay_{short_name}", use_container_width=True):
                         if is_active:
                             st.session_state.home_filter_category = None
                             st.session_state.home_filter_value = None
