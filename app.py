@@ -220,16 +220,29 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     margin-bottom: 6px;
 }
 
-.quick-order-text-box {
+/* Khung hiển thị thông tin gửi hàng nhanh đồng bộ font giao diện */
+.quick-order-card {
     background-color: #F8FAF9;
-    border: 1px dashed #15503F;
+    border: 1px solid #D1E3DC;
+    border-left: 4px solid #15503F;
     border-radius: 10px;
-    padding: 12px 16px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-size: 13.5px;
-    line-height: 1.6;
+    padding: 14px 18px;
+    font-family: inherit;
+    font-size: 13.8px;
+    line-height: 1.7;
     color: #1F2937;
-    margin: 10px 0;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+.quick-order-card .label {
+    font-weight: 700;
+    color: #111827;
+    display: inline-block;
+    min-width: 105px;
+}
+.quick-order-card .value {
+    color: #374151;
+    font-weight: 400;
 }
 
 /* Thanh điều hướng Desktop */
@@ -867,7 +880,7 @@ def render_order_detail_inline(ma_don):
             st.write(f"**Ghi chú:** {order_row['Ghi_chu_thanh_toan']}")
 
         # -------------------------------------------------------------------
-        # KHU VỰC VĂN BẢN ĐƠN HÀNG NHANH (ĐỊNH DẠNG CHỮ GỌN GÀNG DỄ SAO CHÉP)
+        # KHU VỰC VĂN BẢN ĐƠN HÀNG NHANH - ĐỒNG BỘ PHÔNG CHỮ & TIÊU ĐỀ IN ĐẬM
         # -------------------------------------------------------------------
         nhom_dm_list = items["Nhom_danh_muc"].dropna().unique().tolist()
         nhom_dm_str = ", ".join(nhom_dm_list) if nhom_dm_list else "Hàng hóa"
@@ -885,17 +898,18 @@ def render_order_detail_inline(ma_don):
         tong_sl_giao = int(items["SL_dat"].sum() + items["Tang"].sum())
         ghi_chu_don = safe_str(order_row.get("Ghi_chu_thanh_toan")) or "Không có"
 
-        quick_text = (
-            f"Đặt hàng: {nhom_dm_str}\n"
-            f"NPP: {ten_npp}\n"
-            f"Ngày lên đơn: {order_row.get('Ngay_len_don')}\n"
-            f"Người nhận: {nguoi_nhan_str}\n"
-            f"Số lượng: {tong_sl_giao}\n"
-            f"Ghi chú: {ghi_chu_don}"
-        )
-        
         with st.expander("📋 **Xem nhanh thông tin gửi hàng (dạng chữ):**", expanded=True):
-            st.code(quick_text, language="markdown")
+            html_text_card = f"""
+            <div class="quick-order-card">
+                <div><span class="label">Đặt hàng:</span> <span class="value">{nhom_dm_str}</span></div>
+                <div><span class="label">NPP:</span> <span class="value">{ten_npp}</span></div>
+                <div><span class="label">Ngày lên đơn:</span> <span class="value">{order_row.get('Ngay_len_don')}</span></div>
+                <div><span class="label">Người nhận:</span> <span class="value">{nguoi_nhan_str}</span></div>
+                <div><span class="label">Số lượng:</span> <span class="value">{tong_sl_giao}</span></div>
+                <div><span class="label">Ghi chú:</span> <span class="value">{ghi_chu_don}</span></div>
+            </div>
+            """
+            st.markdown(html_text_card, unsafe_allow_html=True)
 
         # Tính cột Tổng tiền hàng trước chiết khấu
         items["Tong_tien_hang"] = items["SL_dat"] * items["Don_gia_ap_dung"]
@@ -1277,7 +1291,6 @@ elif nav == "💰 Lương Sale":
         doanh_thu_sau_vat = doanh_thu * (1 - 0.08)
         luong_co_ban = doanh_thu_sau_vat * ty_le_hh
 
-        # Kiểm tra nếu là Sale Đạt -> Tìm dữ liệu của Sale Tân (1%) và Sale Đức (1%)
         is_dat = any(kw in str(ten_nv).lower() for kw in ["đạt", "dat"])
         thuong_tan = 0
         thuong_duc = 0
@@ -1285,7 +1298,6 @@ elif nav == "💰 Lương Sale":
         ten_nv_duc = ""
 
         if is_dat:
-            # 1. Tìm doanh thu của Tân
             tan_rows = nhan_vien_df[nhan_vien_df["Ten_NV"].str.lower().str.contains("tân|tan", na=False)]
             if not tan_rows.empty:
                 ma_tan = tan_rows.iloc[0]["Ma_NV"]
@@ -1297,7 +1309,6 @@ elif nav == "💰 Lương Sale":
                 doanh_thu_tan_sau_vat = doanh_thu_tan * (1 - 0.08)
                 thuong_tan = doanh_thu_tan_sau_vat * 0.01
 
-            # 2. Tìm doanh thu của Đức
             duc_rows = nhan_vien_df[nhan_vien_df["Ten_NV"].str.lower().str.contains("đức|duc", na=False)]
             if not duc_rows.empty:
                 ma_duc = duc_rows.iloc[0]["Ma_NV"]
