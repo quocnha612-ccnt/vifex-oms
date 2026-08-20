@@ -24,8 +24,10 @@ RED = "#D92B2B"
 RED_BG = "#FDE8E8"
 AMBER = "#D97706"
 AMBER_BG = "#FEF3C7"
-BLUE = "#1D4ED8"
+BLUE = "#2563EB"
 BLUE_BG = "#EFF6FF"
+PURPLE = "#7C3AED"
+PURPLE_BG = "#F5F3FF"
 GRAY_BG = "#F3F4F6"
 GRAY_TEXT = "#4B5563"
 
@@ -42,7 +44,7 @@ def safe_str(v):
     return "" if s.lower() == "nan" else s
 
 # ---------------------------------------------------------------------------
-# HÀM LOAD ẢNH LOGO DƯỚI DẠNG BASE64
+# HÀM LOAD ẢNH LOGO & QR DƯỚI DẠNG BASE64 / PIL
 # ---------------------------------------------------------------------------
 def get_logo_base64():
     candidates = [
@@ -59,8 +61,24 @@ def get_logo_base64():
                 return base64.b64encode(img_f.read()).decode()
     return None
 
+def get_qr_bank_image():
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "qr_bank.png"),
+        os.path.join(os.path.dirname(__file__), "qr.png"),
+        "qr_bank.png",
+        "qr.png",
+        "input_file_27.png"
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            try:
+                return Image.open(p).convert("RGBA")
+            except Exception:
+                pass
+    return None
+
 # ---------------------------------------------------------------------------
-# CSS RESPONSIVE & BỐ CỤC CHUẨN
+# CSS RESPONSIVE & TỐI ƯU GIAO DIỆN GỌN GÀNG KHOA HỌC
 # ---------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -72,10 +90,10 @@ header[data-testid="stHeader"] {
 /* 1. Desktop / Màn hình rộng */
 .block-container {
     max-width: 960px !important;
-    padding-top: 4.5rem !important;
-    padding-bottom: 4rem !important;
-    padding-left: 1.5rem !important;
-    padding-right: 1.5rem !important;
+    padding-top: 4rem !important;
+    padding-bottom: 3rem !important;
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
     margin: 0 auto !important;
 }
 
@@ -83,9 +101,9 @@ header[data-testid="stHeader"] {
 .vifex-banner {
     background: #15503F;
     color: #ffffff;
-    padding: 18px 24px;
-    border-radius: 16px;
-    margin-bottom: 18px;
+    padding: 16px 22px;
+    border-radius: 14px;
+    margin-bottom: 14px;
     box-shadow: 0 4px 14px rgba(21, 80, 63, 0.15);
     display: flex;
     justify-content: space-between;
@@ -98,11 +116,11 @@ header[data-testid="stHeader"] {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 700;
     letter-spacing: 1px;
     opacity: 0.9;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
 }
 .vifex-banner .brand-tag::before {
     content: "";
@@ -113,26 +131,26 @@ header[data-testid="stHeader"] {
     border-radius: 3px;
 }
 .vifex-banner .sub-title {
-    font-size: 14px;
+    font-size: 13.5px;
     opacity: 0.85;
 }
 .vifex-banner .main-title {
-    font-size: 24px;
+    font-size: 23px;
     font-weight: 700;
     line-height: 1.25;
     margin-top: 2px;
 }
 .vifex-banner-logo {
     background: #ffffff;
-    width: 68px;
-    height: 68px;
-    border-radius: 14px;
-    padding: 6px;
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    padding: 5px;
     display: flex;
     align-items: center;
     justify-content: center;
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    margin-left: 16px;
+    margin-left: 14px;
     flex-shrink: 0;
 }
 .vifex-banner-logo img {
@@ -143,28 +161,28 @@ header[data-testid="stHeader"] {
 
 /* Thẻ Đơn hàng Compact */
 div[data-testid="stVerticalBlockBorderWrapper"] {
-    margin-bottom: 10px !important;
-    border-radius: 14px !important;
+    margin-bottom: 8px !important;
+    border-radius: 12px !important;
     border-color: #edf0ed !important;
     background: #ffffff !important;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.02) !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02) !important;
 }
 
 .order-code-compact {
     font-weight: 700;
-    font-size: 16px;
+    font-size: 15.5px;
     color: #111827;
-    margin-bottom: 2px;
+    margin-bottom: 1px;
 }
 .order-cust-compact {
-    font-size: 13.5px;
+    font-size: 13px;
     color: #4b5563;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
 }
 .order-value-compact {
     font-weight: 700;
     color: #15503F;
-    font-size: 15.5px;
+    font-size: 15px;
 }
 
 .badge {
@@ -179,10 +197,10 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 .metric-box {
     background: #ffffff;
     border: 1px solid #edf0ed;
-    border-radius: 14px;
-    padding: 14px 16px;
+    border-radius: 12px;
+    padding: 12px 14px;
     text-align: left;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
 }
 .metric-label {
     font-size: 12px;
@@ -190,26 +208,26 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     font-weight: 500;
 }
 .metric-value {
-    font-size: 20px;
+    font-size: 19px;
     font-weight: 700;
-    margin-top: 4px;
+    margin-top: 3px;
 }
 
 .product-item-title {
     font-size: 13px;
     font-weight: 700;
     color: #15503F;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 /* Thanh điều hướng Desktop */
 div[class*="st-key-vifex_nav"] {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 div[class*="st-key-vifex_nav"] button {
-    padding: 10px 4px !important;
+    padding: 8px 4px !important;
     font-size: 13px !important;
-    border-radius: 12px !important;
+    border-radius: 10px !important;
     border: 1px solid #e5e7eb !important;
     background-color: #f9fafb !important;
     color: #374151 !important;
@@ -222,8 +240,8 @@ div[class*="st-key-vifex_nav"] button[kind="primary"] {
 }
 
 div.stButton > button[kind="primary"] {
-    border-radius: 12px !important;
-    padding: 12px 20px !important;
+    border-radius: 10px !important;
+    padding: 10px 18px !important;
     font-weight: 600 !important;
 }
 
@@ -231,32 +249,32 @@ div.stButton > button[kind="primary"] {
 @media screen and (max-width: 768px) {
     .block-container {
         max-width: 100% !important;
-        padding-top: 4.8rem !important;
-        padding-left: 0.75rem !important;
-        padding-right: 0.75rem !important;
+        padding-top: 4.5rem !important;
+        padding-left: 0.6rem !important;
+        padding-right: 0.6rem !important;
     }
 
     .vifex-banner {
-        padding: 14px 16px !important;
-        border-radius: 14px !important;
+        padding: 12px 14px !important;
+        border-radius: 12px !important;
     }
     .vifex-banner .main-title {
-        font-size: 19px !important;
+        font-size: 18px !important;
     }
 
     .vifex-banner-logo {
-        width: 62px !important;
-        height: 62px !important;
-        border-radius: 12px !important;
-        padding: 5px !important;
-        margin-left: 10px !important;
+        width: 56px !important;
+        height: 56px !important;
+        border-radius: 10px !important;
+        padding: 4px !important;
+        margin-left: 8px !important;
     }
 
     div[class*="st-key-vifex_nav"] [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        gap: 6px !important;
+        gap: 4px !important;
     }
     div[class*="st-key-vifex_nav"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
         width: 33.33% !important;
@@ -265,9 +283,9 @@ div.stButton > button[kind="primary"] {
         padding: 0 !important;
     }
     div[class*="st-key-vifex_nav"] button {
-        padding: 8px 2px !important;
-        font-size: 11.5px !important;
-        height: 42px !important;
+        padding: 6px 2px !important;
+        font-size: 11px !important;
+        height: 38px !important;
         white-space: nowrap !important;
     }
 }
@@ -299,12 +317,13 @@ def banner(title, subtitle=None, highlight_text=None):
 
 
 def status_badge_html(status):
+    # Hệ thống màu sắc nhận diện riêng biệt từng trạng thái
     colors = {
-        "Lên đơn": (AMBER, AMBER_BG),
-        "Gửi kho": (AMBER, AMBER_BG),
-        "Đang giao hàng": (AMBER, AMBER_BG),
-        "Đã nhận hàng": (GREEN, GREEN_BG),
-        "Chưa Thanh toán": (RED, RED_BG),
+        "Lên đơn": (BLUE, BLUE_BG),               # Xanh dương
+        "Gửi kho": (PURPLE, PURPLE_BG),           # Tím
+        "Đang giao hàng": (AMBER, AMBER_BG),      # Vàng hổ phách
+        "Đã nhận hàng": (GREEN, GREEN_BG),        # Xanh lá cây
+        "Chưa Thanh toán": (RED, RED_BG),         # Đỏ
     }
     fg, bg = colors.get(status, (GRAY_TEXT, GRAY_BG))
     return f'<span class="badge" style="background:{bg};color:{fg}">{status}</span>'
@@ -458,7 +477,6 @@ def update_order_status(ma_don, new_status):
 
 def delete_order_completely(ma_don):
     """Xóa toàn bộ dữ liệu đơn hàng ở Chi_tiet_don_hang, Don_hang và Hoa_don_VAT"""
-    # 1. Xóa các dòng trong Chi_tiet_don_hang (duyệt ngược từ dưới lên)
     try:
         ctdh_ws = get_ws("Chi_tiet_don_hang")
         col_vals = ctdh_ws.col_values(2) # Cột B: Ma_don
@@ -468,7 +486,6 @@ def delete_order_completely(ma_don):
     except Exception:
         pass
 
-    # 2. Xóa dòng trong Don_hang
     try:
         don_hang_ws = get_ws("Don_hang")
         row = find_row_by_code(don_hang_ws, ma_don, col_index=1)
@@ -477,7 +494,6 @@ def delete_order_completely(ma_don):
     except Exception:
         pass
 
-    # 3. Xóa bản ghi hóa đơn VAT (nếu có)
     delete_vat_record(ma_don)
     refresh()
 
@@ -586,7 +602,7 @@ def delete_vat_record(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# Ảnh phiếu xuất đơn hàng (HỖ TRỢ XUỐNG DÒNG TỰ ĐỘNG KHÔNG BỊ ĐÈ CHỮ)
+# Ảnh phiếu xuất đơn hàng (TÍCH HỢP MÃ QR & THÔNG TIN VIETINBANK CHUẨN NÉT)
 # ---------------------------------------------------------------------------
 @st.cache_resource
 def get_font(size):
@@ -643,8 +659,9 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     f_sub = get_font(14)
     f_h = get_font(16)
     f_n = get_font(14)
+    f_small = get_font(13)
 
-    H = 450 + row_h * (len(items_df) + 2) + 120
+    H = 540 + row_h * (len(items_df) + 2) + 140
 
     img = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(img)
@@ -697,7 +714,7 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     d.line([24, y, W - 24, y], fill="#ddd", width=1); y += 14
     draw_bold(d, (cols_x[5], y), "TỔNG CỘNG:", f_h, RED)
     draw_bold(d, (cols_x[6], y), money(total_thanh_tien), f_h, RED)
-    y += 34
+    y += 32
 
     d.text((24, y), f"Hình thức thanh toán: {order_row.get('Hinh_thuc_thanh_toan', '')}", font=f_n, fill="black")
     y += 22
@@ -706,7 +723,29 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     if ghi_chu:
         y = draw_wrapped_text(d, (24, y), f"Ghi chú: {ghi_chu}", f_n, "black", max_width=810)
 
-    final_h = max(y + 30, 300)
+    # KHU VỰC THÔNG TIN THANH TOÁN & MÃ QR VIETINBANK CHUẨN NÉT
+    y += 10
+    d.line([24, y, W - 24, y], fill="#eee", width=1); y += 14
+    
+    qr_img = get_qr_bank_image()
+    if qr_img:
+        qr_size = 120
+        qr_resized = qr_img.resize((qr_size, qr_size), Image.Resampling.LANCZOS)
+        img.paste(qr_resized, (24, y), qr_resized if qr_resized.mode == "RGBA" else None)
+        
+        # Thông tin tài khoản đặt cạnh mã QR
+        tx = 24 + qr_size + 18
+        ty = y + 10
+        draw_bold(d, (tx, ty), "THÔNG TIN THANH TOÁN CHUYỂN KHOẢN:", f_h, GREEN); ty += 26
+        draw_bold(d, (tx, ty), "STK Vietinbank: 116003017106", f_n, "black"); ty += 22
+        d.text((tx, ty), "Chủ TK: Công ty TNHH VIFEX", font=f_n, fill="black"); ty += 22
+        d.text((tx, ty), "(Quét mã QR bên cạnh để chuyển khoản chính xác và nhanh chóng)", font=f_small, fill="#4B5563")
+        y += qr_size + 15
+    else:
+        draw_bold(d, (24, y), "THÔNG TIN THANH TOÁN: STK Vietinbank 116003017106 - Công ty TNHH VIFEX", f_n, GREEN)
+        y += 28
+
+    final_h = max(y + 20, 320)
     cropped_img = img.crop((0, 0, W, final_h))
 
     buf = io.BytesIO()
@@ -803,8 +842,6 @@ def render_order_detail_inline(ma_don):
         if safe_str(order_row.get("Ghi_chu_thanh_toan")):
             st.write(f"**Ghi chú:** {order_row['Ghi_chu_thanh_toan']}")
 
-        st.markdown("---")
-        
         # Tính cột Tổng tiền hàng trước chiết khấu
         items["Tong_tien_hang"] = items["SL_dat"] * items["Don_gia_ap_dung"]
         
@@ -822,91 +859,88 @@ def render_order_detail_inline(ma_don):
 
         total = items["Thanh_tien"].sum()
         st.markdown(f"<div style='font-size:16px;font-weight:700;color:{GREEN};text-align:right;'>Tổng cộng: {money(total)}</div>", unsafe_allow_html=True)
-        st.markdown("---")
-
-        new_status = st.selectbox("Cập nhật trạng thái", ALL_STATUSES,
-                                   index=ALL_STATUSES.index(order_row["Trang_thai"])
-                                   if order_row["Trang_thai"] in ALL_STATUSES else 0,
-                                   key=f"status_{ma_don}")
         
-        # 3 CỘT NÚT HÀNH ĐỘNG
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            if st.button("💾 Lưu trạng thái", key=f"save_status_{ma_don}", type="primary", use_container_width=True):
+        # HÀNG ĐIỀU KHIỂN GỌN GÀNG TRÊN 1 DÒNG (SELECTBOX + LƯU TRẠNG THÁI + PHIẾU XUẤT + XEM VAT)
+        col_st_sel, col_st_btn, col_slip_btn, col_vat_btn = st.columns([1.6, 1.2, 1.2, 1.2])
+        
+        with col_st_sel:
+            new_status = st.selectbox("Cập nhật trạng thái", ALL_STATUSES,
+                                       index=ALL_STATUSES.index(order_row["Trang_thai"])
+                                       if order_row["Trang_thai"] in ALL_STATUSES else 0,
+                                       key=f"status_{ma_don}", label_visibility="collapsed")
+        with col_st_btn:
+            if st.button("💾 Lưu", key=f"save_status_{ma_don}", type="primary", use_container_width=True):
                 update_order_status(ma_don, new_status)
-                st.success("Đã cập nhật trạng thái.")
+                st.success("Đã lưu!")
                 st.rerun()
-        with c2:
+        with col_slip_btn:
             preview_key = f"show_preview_{ma_don}"
             if preview_key not in st.session_state:
                 st.session_state[preview_key] = False
             
-            btn_label = "🙈 Đóng phiếu" if st.session_state[preview_key] else "🖼️ Phiếu xuất"
+            btn_label = "🙈 Đóng" if st.session_state[preview_key] else "🖼️ Phiếu xuất"
             if st.button(btn_label, key=f"btn_toggle_preview_{ma_don}", use_container_width=True):
                 st.session_state[preview_key] = not st.session_state[preview_key]
                 st.rerun()
-                
-        with c3:
+        with col_vat_btn:
             drive_vat_url = get_vat_link_from_sheet(ma_don)
             if drive_vat_url:
-                st.link_button("📄 Xem VAT (Drive)", url=drive_vat_url, use_container_width=True)
+                st.link_button("📄 VAT", url=drive_vat_url, use_container_width=True)
             else:
-                st.button("☁️ Hóa đơn (Chưa có)", disabled=True, use_container_width=True)
+                st.button("☁️ VAT", disabled=True, use_container_width=True)
 
         # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG)
         if st.session_state.get(f"show_preview_{ma_don}", False):
             png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
             with st.container(border=True):
-                st.markdown("##### 📄 Ảnh xem trước Phiếu xuất đơn hàng:")
                 st.image(png_bytes, use_container_width=True)
                 st.download_button("📥 Tải ảnh này về máy (PNG)", data=png_bytes,
                                     file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
                                     key=f"dl_inside_{ma_don}", use_container_width=True)
 
-        # KHU VỰC TẢI THẲNG LÊN GOOGLE DRIVE
-        with st.expander("☁️ **Tải lên Hóa đơn VAT tự động vào Google Drive**", expanded=False):
-            drive_vat_url = get_vat_link_from_sheet(ma_don)
-            if drive_vat_url:
-                st.info(f"✅ Đơn hàng **{ma_don}** đã có file lưu trên Google Drive.")
-                st.markdown(f"👉 [Bấm vào đây để mở xem file trên Google Drive]({drive_vat_url})")
-                if st.button("🗑️ Xóa liên kết hóa đơn này", key=f"btn_del_vat_{ma_don}"):
-                    delete_vat_record(ma_don)
-                    st.success(f"Đã xóa thông tin hóa đơn VAT của đơn **{ma_don}**.")
-                    st.rerun()
-                st.markdown("---")
-                st.caption("Chọn tệp mới bên dưới nếu muốn **Tải đè / Thay thế file trên Drive**:")
-            else:
-                st.caption("Kéo thả tệp PDF vào đây, hệ thống sẽ **tự động đẩy thẳng file vào thư mục Google Drive**.")
-
-            uploaded_vat = st.file_uploader(
-                f"Chọn tệp hóa đơn cho đơn {ma_don}", 
-                type=["pdf", "png", "jpg", "jpeg"], 
-                key=f"vat_uploader_{ma_don}",
-                label_visibility="collapsed"
-            )
-            
-            if uploaded_vat is not None:
-                if st.button("⬆️ Tải lên Google Drive", key=f"btn_save_vat_{ma_don}", type="primary"):
-                    with st.spinner("Đang tự động đẩy file lên Google Drive..."):
-                        try:
-                            file_drive_link = upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_vat)
-                            st.success(f"Đã tải thành công file lên Google Drive cho đơn **{ma_don}**!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Lỗi: {e}")
-
-        # KHU VỰC XÓA ĐƠN HÀNG HOÀN TOÀN
-        st.markdown("---")
-        with st.expander("⚠️ **Xóa đơn hàng này**", expanded=False):
-            st.warning(f"Thao tác này sẽ xóa vĩnh viễn đơn **{ma_don}** và toàn bộ sản phẩm chi tiết của đơn trên Google Sheets.")
-            confirm_del = st.checkbox(f"Tôi xác nhận muốn xóa đơn {ma_don}", key=f"chk_del_{ma_don}")
-            if confirm_del:
-                if st.button("🗑️ Xác nhận xóa vĩnh viễn đơn hàng", key=f"btn_confirm_del_order_{ma_don}", type="primary"):
-                    with st.spinner("Đang xóa đơn hàng trên Google Sheets..."):
-                        delete_order_completely(ma_don)
-                        st.session_state.selected_order = None
-                        st.success(f"Đã xóa thành công đơn hàng {ma_don}!")
+        # KHU VỰC TẢI THẲNG LÊN GOOGLE DRIVE & XÓA ĐƠN HÀNG TRONG CÙNG 1 KHUNG EXPANDER GỌN GÀNG
+        c_exp1, c_exp2 = st.columns(2)
+        with c_exp1:
+            with st.expander("☁️ **Quản lý Hóa đơn VAT**", expanded=False):
+                drive_vat_url = get_vat_link_from_sheet(ma_don)
+                if drive_vat_url:
+                    st.info(f"✅ Đơn hàng đã có file lưu trên Google Drive.")
+                    st.markdown(f"👉 [Mở xem file trên Google Drive]({drive_vat_url})")
+                    if st.button("🗑️ Xóa hóa đơn này", key=f"btn_del_vat_{ma_don}"):
+                        delete_vat_record(ma_don)
+                        st.success(f"Đã xóa hóa đơn VAT của đơn **{ma_don}**.")
                         st.rerun()
+                else:
+                    st.caption("Kéo thả file PDF để tự động lưu vào Google Drive:")
+
+                uploaded_vat = st.file_uploader(
+                    f"Chọn tệp hóa đơn cho đơn {ma_don}", 
+                    type=["pdf", "png", "jpg", "jpeg"], 
+                    key=f"vat_uploader_{ma_don}",
+                    label_visibility="collapsed"
+                )
+                
+                if uploaded_vat is not None:
+                    if st.button("⬆️ Tải lên Google Drive", key=f"btn_save_vat_{ma_don}", type="primary"):
+                        with st.spinner("Đang tải file..."):
+                            try:
+                                file_drive_link = upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_vat)
+                                st.success(f"Đã tải thành công file lên Google Drive!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Lỗi: {e}")
+                                
+        with c_exp2:
+            with st.expander("⚠️ **Xóa đơn hàng này**", expanded=False):
+                st.caption(f"Xóa vĩnh viễn đơn **{ma_don}** và toàn bộ chi tiết trên Google Sheets.")
+                confirm_del = st.checkbox(f"Xác nhận xóa {ma_don}", key=f"chk_del_{ma_don}")
+                if confirm_del:
+                    if st.button("🗑️ Xóa vĩnh viễn", key=f"btn_confirm_del_order_{ma_don}", type="primary"):
+                        with st.spinner("Đang xóa đơn hàng..."):
+                            delete_order_completely(ma_don)
+                            st.session_state.selected_order = None
+                            st.success(f"Đã xóa đơn {ma_don}!")
+                            st.rerun()
 
         st.write("")
         if st.button("← Đóng xem chi tiết", key=f"close_{ma_don}", use_container_width=True):
@@ -929,21 +963,21 @@ if nav == "🏠 Trang chủ":
         counts = don_hang_df["Trang_thai"].value_counts()
         c1, c2, c3 = st.columns(3)
         
-        # Ô 1: Lên đơn (Mới thêm đứng trước ô Gửi kho)
+        # Ô 1: Lên đơn (Màu xanh dương)
         c1.markdown(f"""
         <div class="metric-box" style="background:{BLUE_BG};border-color:#BFDBFE;">
             <div class="metric-value" style="color:{BLUE};margin-top:0;">{int(counts.get('Lên đơn', 0))}</div>
             <div class="metric-label" style="color:#1E40AF;font-weight:600;">Lên đơn</div>
         </div>""", unsafe_allow_html=True)
         
-        # Ô 2: Gửi kho
+        # Ô 2: Gửi kho (Màu tím)
         c2.markdown(f"""
-        <div class="metric-box" style="background:{AMBER_BG};border-color:#FDE68A;">
-            <div class="metric-value" style="color:{AMBER};margin-top:0;">{int(counts.get('Gửi kho', 0))}</div>
-            <div class="metric-label" style="color:#92400E;font-weight:600;">Gửi kho</div>
+        <div class="metric-box" style="background:{PURPLE_BG};border-color:#DDD6FE;">
+            <div class="metric-value" style="color:{PURPLE};margin-top:0;">{int(counts.get('Gửi kho', 0))}</div>
+            <div class="metric-label" style="color:#5B21B6;font-weight:600;">Gửi kho</div>
         </div>""", unsafe_allow_html=True)
         
-        # Ô 3: Đang giao / Chưa TT
+        # Ô 3: Đang giao / Chưa TT (Màu đỏ)
         c3.markdown(f"""
         <div class="metric-box" style="background:{RED_BG};border-color:#FECACA;">
             <div class="metric-value" style="color:{RED};margin-top:0;">{int(counts.get('Đang giao hàng', 0)) + int(counts.get('Chưa Thanh toán', 0))}</div>
@@ -951,7 +985,7 @@ if nav == "🏠 Trang chủ":
         </div>""", unsafe_allow_html=True)
 
         st.write("")
-        st.markdown("<div style='font-size:14px;font-weight:700;color:#374151;margin-bottom:8px;'>ĐƠN CẦN XỬ LÝ</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13.5px;font-weight:700;color:#374151;margin-bottom:6px;'>ĐƠN CẦN XỬ LÝ</div>", unsafe_allow_html=True)
         
         pending_view = pending.sort_values("Ma_don", ascending=False).head(6)
         if pending_view.empty:
@@ -1188,7 +1222,6 @@ elif nav == "💰 Lương Sale":
         doanh_thu_sau_vat = doanh_thu * (1 - 0.08)
         luong_co_ban = doanh_thu_sau_vat * ty_le_hh
 
-        # Kiểm tra nếu là Sale Đạt -> Tìm dữ liệu của Sale Tân để cộng 1%
         is_dat = any(kw in str(ten_nv).lower() for kw in ["đạt", "dat"])
         thuong_tan = 0
         doanh_thu_tan_sau_vat = 0
