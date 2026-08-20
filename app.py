@@ -28,11 +28,20 @@ BLUE = "#2563EB"
 BLUE_BG = "#EFF6FF"
 PURPLE = "#7C3AED"
 PURPLE_BG = "#F5F3FF"
+TEAL = "#0D9488"
+TEAL_BG = "#CCFBF1"
+ORANGE = "#EA580C"
+ORANGE_BG = "#FFEDD5"
 GRAY_BG = "#F3F4F6"
 GRAY_TEXT = "#4B5563"
 
-ALL_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
-VALID_STATUSES = ["Gửi kho", "Đang giao hàng", "Đã nhận hàng", "Chưa Thanh toán"]
+# 1. Trạng thái vận hành đơn hàng
+ORDER_STATUSES = ["Lên đơn", "Gửi kho", "Đang giao", "Đã giao"]
+# Tương thích ngược với các tên cũ trên sheet
+VALID_ORDER_STATUSES = ["Gửi kho", "Đang giao", "Đang giao hàng", "Đã giao", "Đã giao hàng", "Đã nhận hàng"]
+
+# 2. Trạng thái thanh toán & VAT
+PAYMENT_STATUSES = ["Chưa thanh toán", "TT - Nháp VAT", "TT - không VAT", "TT - Đã VAT"]
 
 VAT_FOLDER_ID = "1HZiL99pNqV31u6Z8q5EqeoyjFJkPJFji"
 DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLfDcPZIs2QEshLL_uYSQ6-N4CnSbJhmorx3EI_28QZGd1EnNUEF9yrzh3Zx8M3bgqNw/exec"
@@ -78,7 +87,7 @@ def get_qr_bank_image():
     return None
 
 # ---------------------------------------------------------------------------
-# CSS RESPONSIVE & TỐI ƯU GIAO DIỆN GỌN GÀNG KHOA HỌC
+# CSS RESPONSIVE & BỐ CỤC CHUẨN
 # ---------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -87,7 +96,7 @@ header[data-testid="stHeader"] {
     z-index: 1 !important;
 }
 
-/* 1. Desktop / Màn hình rộng */
+/* Desktop */
 .block-container {
     max-width: 960px !important;
     padding-top: 4rem !important;
@@ -187,11 +196,12 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 
 .badge {
     display: inline-block;
-    padding: 4px 10px;
-    border-radius: 8px;
-    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
     font-weight: 600;
     text-align: center;
+    white-space: nowrap;
 }
 
 .metric-box {
@@ -270,7 +280,7 @@ div.stButton > button[kind="primary"] {
     font-weight: 600 !important;
 }
 
-/* 2. Mobile */
+/* Mobile */
 @media screen and (max-width: 768px) {
     .block-container {
         max-width: 100% !important;
@@ -341,16 +351,32 @@ def banner(title, subtitle=None, highlight_text=None):
     st.markdown(html_code, unsafe_allow_html=True)
 
 
-def status_badge_html(status):
-    colors = {
-        "Lên đơn": (BLUE, BLUE_BG),
-        "Gửi kho": (PURPLE, PURPLE_BG),
-        "Đang giao hàng": (AMBER, AMBER_BG),
-        "Đã nhận hàng": (GREEN, GREEN_BG),
-        "Chưa Thanh toán": (RED, RED_BG),
-    }
-    fg, bg = colors.get(status, (GRAY_TEXT, GRAY_BG))
-    return f'<span class="badge" style="background:{bg};color:{fg}">{status}</span>'
+def order_status_badge_html(status):
+    # Trạng thái vận hành đơn
+    st_clean = safe_str(status)
+    if "lên đơn" in st_clean.lower():
+        return f'<span class="badge" style="background:{BLUE_BG};color:{BLUE}">Lên đơn</span>'
+    elif "gửi kho" in st_clean.lower():
+        return f'<span class="badge" style="background:{PURPLE_BG};color:{PURPLE}">Gửi kho</span>'
+    elif any(k in st_clean.lower() for k in ["đang giao", "giao hàng"]):
+        return f'<span class="badge" style="background:{AMBER_BG};color:{AMBER}">Đang giao</span>'
+    elif any(k in st_clean.lower() for k in ["đã giao", "đã nhận"]):
+        return f'<span class="badge" style="background:{GREEN_BG};color:{GREEN}">Đã giao</span>'
+    return f'<span class="badge" style="background:{GRAY_BG};color:{GRAY_TEXT}">{status}</span>'
+
+
+def payment_status_badge_html(status):
+    # Trạng thái thanh toán & VAT
+    st_clean = safe_str(status)
+    if "nháp vat" in st_clean.lower():
+        return f'<span class="badge" style="background:{ORANGE_BG};color:{ORANGE}">TT - Nháp VAT</span>'
+    elif "không vat" in st_clean.lower():
+        return f'<span class="badge" style="background:{TEAL_BG};color:{TEAL}">TT - không VAT</span>'
+    elif "đã vat" in st_clean.lower():
+        return f'<span class="badge" style="background:{GREEN_BG};color:{GREEN}">TT - Đã VAT</span>'
+    elif any(k in st_clean.lower() for k in ["chưa thanh toán", "chưa tt"]):
+        return f'<span class="badge" style="background:{RED_BG};color:{RED}">Chưa TT</span>'
+    return f'<span class="badge" style="background:{GRAY_BG};color:{GRAY_TEXT}">{status}</span>'
 
 
 def money(v):
@@ -431,6 +457,34 @@ def load_data():
     lich_su_gia_df = to_date_col(lich_su_gia_df, "Ngay_ket_thuc")
     don_hang_df = to_date_col(don_hang_df, "Ngay_len_don")
 
+    # Chuẩn hóa cột Trạng thái thanh toán nếu chưa có trên sheet
+    if "Trang_thai_TT" not in don_hang_df.columns:
+        # Nếu cột Trang_thai cũ có chứa từ "Chưa Thanh toán" hoặc các trạng thái thanh toán thì phân loại chuẩn
+        def map_payment_status(r):
+            st_val = safe_str(r.get("Trang_thai"))
+            for p in PAYMENT_STATUSES:
+                if p.lower() in st_val.lower():
+                    return p
+            return "Chưa thanh toán"
+        don_hang_df["Trang_thai_TT"] = don_hang_df.apply(map_payment_status, axis=1)
+    else:
+        don_hang_df["Trang_thai_TT"] = don_hang_df["Trang_thai_TT"].fillna("Chưa thanh toán")
+
+    # Chuẩn hóa trạng thái vận hành đơn
+    def normalize_order_status(st_val):
+        s = safe_str(st_val).lower()
+        if "lên đơn" in s:
+            return "Lên đơn"
+        elif "gửi kho" in s:
+            return "Gửi kho"
+        elif any(k in s for k in ["đang giao", "giao hàng"]):
+            return "Đang giao"
+        elif any(k in s for k in ["đã giao", "đã nhận"]):
+            return "Đã giao"
+        return "Lên đơn"
+    
+    don_hang_df["Trang_thai_Don"] = don_hang_df["Trang_thai"].apply(normalize_order_status)
+
     for col in ["SL_dat", "Tang", "Don_gia_ap_dung", "Chiet_khau", "Thanh_tien", "San_luong_xuat_kho"]:
         if col in ctdh_df.columns:
             ctdh_df[col] = pd.to_numeric(ctdh_df[col], errors="coerce").fillna(0)
@@ -484,26 +538,38 @@ def find_row_by_code(ws, code, col_index=1):
     return None
 
 
-def update_order_status(ma_don, new_status):
+def update_order_both_statuses(ma_don, new_order_status, new_payment_status):
     today = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
     don_hang_ws = get_ws("Don_hang")
     row = find_row_by_code(don_hang_ws, ma_don, col_index=1)
     if row:
-        don_hang_ws.update_cell(row, 5, new_status)          # E: Trang_thai
-        don_hang_ws.update_cell(row, 8, today)                # H: Ngay_cap_nhat_trang_thai
+        don_hang_ws.update_cell(row, 5, new_order_status)      # E: Trang_thai (Vận hành đơn)
+        don_hang_ws.update_cell(row, 8, today)                 # H: Ngay_cap_nhat_trang_thai
+        # Cập nhật cột K nếu có cột Trang_thai_TT
+        try:
+            headers = don_hang_ws.row_values(1)
+            if "Trang_thai_TT" in headers:
+                col_k = headers.index("Trang_thai_TT") + 1
+                don_hang_ws.update_cell(row, col_k, new_payment_status)
+            else:
+                # Nếu chưa có header thì tạo ở cột 11 (K)
+                don_hang_ws.update_cell(1, 11, "Trang_thai_TT")
+                don_hang_ws.update_cell(row, 11, new_payment_status)
+        except Exception:
+            pass
+
     ctdh_ws = get_ws("Chi_tiet_don_hang")
     ma_don_col = ctdh_ws.col_values(2)
     for i, v in enumerate(ma_don_col, start=1):
         if str(v).strip() == str(ma_don).strip():
-            ctdh_ws.update_cell(i, 10, new_status)            # J: Trang_thai_don
+            ctdh_ws.update_cell(i, 10, new_order_status)       # J: Trang_thai_don
     refresh()
 
 
 def delete_order_completely(ma_don):
-    """Xóa toàn bộ dữ liệu đơn hàng ở Chi_tiet_don_hang, Don_hang và Hoa_don_VAT"""
     try:
         ctdh_ws = get_ws("Chi_tiet_don_hang")
-        col_vals = ctdh_ws.col_values(2) # Cột B: Ma_don
+        col_vals = ctdh_ws.col_values(2)
         for i in range(len(col_vals), 0, -1):
             if str(col_vals[i - 1]).strip() == str(ma_don).strip():
                 ctdh_ws.delete_rows(i)
@@ -523,7 +589,7 @@ def delete_order_completely(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE (GIỜ VIỆT NAM UTC+7 CHUẨN)
+# XỬ LÝ TẢI TỰ ĐỘNG LÊN GOOGLE DRIVE
 # ---------------------------------------------------------------------------
 def get_upload_endpoint():
     try:
@@ -560,7 +626,6 @@ def get_vat_link_from_sheet(ma_don):
 
 
 def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
-    """Tự động đẩy file PDF từ Streamlit thẳng vào folder Drive thông qua Webhook Apps Script"""
     url = get_upload_endpoint()
     _, ext = os.path.splitext(uploaded_file.name)
     file_name = f"{ma_don}_VAT{ext.lower()}"
@@ -591,7 +656,7 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
         file_url = data.get("fileUrl")
         try:
             ws = get_vat_sheet()
-            rows = ws.col_values(2) # Cột B: Ma_don
+            rows = ws.col_values(2)
             target_row = None
             for i, val in enumerate(rows, start=1):
                 if str(val).strip() == str(ma_don).strip():
@@ -600,9 +665,9 @@ def upload_vat_directly_to_drive(ma_don, ma_kh, uploaded_file):
             
             today_str = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M")
             if target_row:
-                ws.update_cell(target_row, 4, uploaded_file.name) # Cột D
-                ws.update_cell(target_row, 5, today_str)          # Cột E
-                ws.update_cell(target_row, 6, file_url)           # Cột F: Link_Drive
+                ws.update_cell(target_row, 4, uploaded_file.name)
+                ws.update_cell(target_row, 5, today_str)
+                ws.update_cell(target_row, 6, file_url)
             else:
                 ma_vat = next_code(ws, 1, "HDVAT", 4)
                 ws.append_row([ma_vat, ma_don, ma_kh, uploaded_file.name, today_str, file_url])
@@ -626,7 +691,7 @@ def delete_vat_record(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# Ảnh phiếu xuất đơn hàng (CÓ MST ĐẶT Ở GÓC PHẢI TRÊN VÀ MÃ QR THANH TOÁN)
+# Ảnh phiếu xuất đơn hàng
 # ---------------------------------------------------------------------------
 @st.cache_resource
 def get_font(size):
@@ -638,9 +703,7 @@ def get_font(size):
     for p in candidates:
         if os.path.exists(p):
             return ImageFont.truetype(p, size)
-    raise FileNotFoundError(
-        "Không tìm thấy font NotoSans.ttf. Cần upload file này vào repo (thư mục fonts/ hoặc gốc repo)."
-    )
+    raise FileNotFoundError("Không tìm thấy font NotoSans.ttf.")
 
 
 def draw_bold(draw, pos, text, font, fill):
@@ -701,10 +764,8 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     sdt = safe_str(khach_hang_row.get("SDT_phu"))
     mst = safe_str(khach_hang_row.get("MST"))
 
-    # Vẽ Mã đơn (bên trái)
     draw_bold(d, (24, y), f"Mã đơn: {ma_don}", f_h, "black")
     
-    # Vẽ MST của khách (bên phải)
     if mst:
         mst_text = f"MST: {mst}"
         bbox_mst = d.textbbox((0, 0), mst_text, font=f_n)
@@ -758,7 +819,7 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     if ghi_chu:
         y = draw_wrapped_text(d, (24, y), f"Ghi chú: {ghi_chu}", f_n, "black", max_width=810)
 
-    # KHU VỰC THÔNG TIN THANH TOÁN & MÃ QR VIETINBANK CHUẨN NÉT
+    # KHU VỰC THÔNG TIN THANH TOÁN & MÃ QR
     y += 10
     d.line([24, y, W - 24, y], fill="#eee", width=1); y += 14
     
@@ -805,7 +866,7 @@ if khach_hang_df.empty or san_pham_df.empty:
 merged = pd.DataFrame()
 if not ctdh_df.empty and not don_hang_df.empty:
     merged = ctdh_df.merge(
-        don_hang_df[["Ma_don", "Ngay_len_don", "Ma_KH", "Sale_phu_trach", "Trang_thai"]],
+        don_hang_df[["Ma_don", "Ngay_len_don", "Ma_KH", "Sale_phu_trach", "Trang_thai", "Trang_thai_Don", "Trang_thai_TT"]],
         on="Ma_don", how="left"
     )
 
@@ -869,9 +930,19 @@ def render_order_detail_inline(ma_don):
     sdt_nhan = safe_str(kh_row.get("SDT_phu"))
     ten_nguoi_nhan = safe_str(kh_row.get("Ten_nguoi_nhan_phu"))
 
+    current_order_st = order_row.get("Trang_thai_Don", "Lên đơn")
+    current_pay_st = order_row.get("Trang_thai_TT", "Chưa thanh toán")
+
     with st.container(border=True):
         st.markdown(f"#### Chi tiết đơn: `{ma_don}`")
-        st.markdown(status_badge_html(order_row["Trang_thai"]), unsafe_allow_html=True)
+        
+        # Hiển thị song song 2 Badge: Trạng thái Vận hành & Trạng thái Thanh toán
+        col_b1, col_b2 = st.columns([1, 1])
+        with col_b1:
+            st.markdown(f"**Giao hàng:** {order_status_badge_html(current_order_st)}", unsafe_allow_html=True)
+        with col_b2:
+            st.markdown(f"**Thanh toán:** {payment_status_badge_html(current_pay_st)}", unsafe_allow_html=True)
+
         st.write(f"**Khách hàng:** {ten_cty}")
         st.write(f"**NHÀ PHÂN PHỐI :** {ten_npp}")
         st.write(f"**Ngày lên đơn:** {order_row['Ngay_len_don']}")
@@ -885,7 +956,6 @@ def render_order_detail_inline(ma_don):
         nhom_dm_list = items["Nhom_danh_muc"].dropna().unique().tolist()
         nhom_dm_str = ", ".join(nhom_dm_list) if nhom_dm_list else "Hàng hóa"
         
-        # Người nhận: Tên + SĐT + Địa chỉ
         nguoi_nhan_parts = []
         if ten_nguoi_nhan:
             nguoi_nhan_parts.append(ten_nguoi_nhan)
@@ -911,10 +981,8 @@ def render_order_detail_inline(ma_don):
             """
             st.markdown(html_text_card, unsafe_allow_html=True)
 
-        # Tính cột Tổng tiền hàng trước chiết khấu
         items["Tong_tien_hang"] = items["SL_dat"] * items["Don_gia_ap_dung"]
         
-        # Sắp xếp đúng thứ tự: Sản phẩm | Đơn giá | SL đặt | Tặng | Tổng tiền | Chiết khấu | Thành tiền
         show_cols = pd.DataFrame()
         show_cols["Sản phẩm"] = items["Ten_SP"]
         show_cols["Đơn giá"] = items["Don_gia_ap_dung"].apply(money)
@@ -929,45 +997,56 @@ def render_order_detail_inline(ma_don):
         total = items["Thanh_tien"].sum()
         st.markdown(f"<div style='font-size:16px;font-weight:700;color:{GREEN};text-align:right;'>Tổng cộng: {money(total)}</div>", unsafe_allow_html=True)
         
-        # HÀNG ĐIỀU KHIỂN GỌN GÀNG TRÊN 1 DÒNG
-        col_st_sel, col_st_btn, col_slip_btn, col_vat_btn = st.columns([1.6, 1.2, 1.2, 1.2])
+        # -------------------------------------------------------------------
+        # KHU VỰC CẬP NHẬT 2 TRẠNG THÁI: ĐƠN HÀNG & THANH TOÁN
+        # -------------------------------------------------------------------
+        st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin:8px 0 4px 0;'>CẬP NHẬT TIẾN ĐỘ ĐƠN HÀNG & THANH TOÁN</div>", unsafe_allow_html=True)
+        c_st1, c_st2, c_st3 = st.columns([1.5, 1.5, 1])
         
-        with col_st_sel:
-            new_status = st.selectbox("Cập nhật trạng thái", ALL_STATUSES,
-                                       index=ALL_STATUSES.index(order_row["Trang_thai"])
-                                       if order_row["Trang_thai"] in ALL_STATUSES else 0,
-                                       key=f"status_{ma_don}", label_visibility="collapsed")
-        with col_st_btn:
-            if st.button("💾 Lưu", key=f"save_status_{ma_don}", type="primary", use_container_width=True):
-                update_order_status(ma_don, new_status)
-                st.success("Đã lưu!")
+        with c_st1:
+            idx_order = ORDER_STATUSES.index(current_order_st) if current_order_st in ORDER_STATUSES else 0
+            new_order_status = st.selectbox("📦 Tiến độ giao hàng", ORDER_STATUSES, index=idx_order, key=f"sel_order_{ma_don}")
+        
+        with c_st2:
+            idx_pay = PAYMENT_STATUSES.index(current_pay_st) if current_pay_st in PAYMENT_STATUSES else 0
+            new_payment_status = st.selectbox("💳 Thanh toán & VAT", PAYMENT_STATUSES, index=idx_pay, key=f"sel_pay_{ma_don}")
+            
+        with c_st3:
+            st.write("")
+            st.write("")
+            if st.button("💾 Lưu thay đổi", key=f"save_status_{ma_don}", type="primary", use_container_width=True):
+                update_order_both_statuses(ma_don, new_order_status, new_payment_status)
+                st.success("Đã cập nhật!")
                 st.rerun()
-        with col_slip_btn:
+
+        # CÁC NÚT XEM PHIẾU XUẤT & HÓA ĐƠN VAT
+        c_action1, c_action2 = st.columns(2)
+        with c_action1:
             preview_key = f"show_preview_{ma_don}"
             if preview_key not in st.session_state:
                 st.session_state[preview_key] = False
-            
-            btn_label = "🙈 Đóng" if st.session_state[preview_key] else "🖼️ Phiếu xuất"
+            btn_label = "🙈 Đóng phiếu xuất" if st.session_state[preview_key] else "🖼️ Xem Phiếu xuất đơn"
             if st.button(btn_label, key=f"btn_toggle_preview_{ma_don}", use_container_width=True):
                 st.session_state[preview_key] = not st.session_state[preview_key]
                 st.rerun()
-        with col_vat_btn:
+                
+        with c_action2:
             drive_vat_url = get_vat_link_from_sheet(ma_don)
             if drive_vat_url:
-                st.link_button("📄 VAT", url=drive_vat_url, use_container_width=True)
+                st.link_button("📄 Mở File Hóa đơn VAT (Drive)", url=drive_vat_url, use_container_width=True)
             else:
-                st.button("☁️ VAT", disabled=True, use_container_width=True)
+                st.button("☁️ Chưa có File VAT", disabled=True, use_container_width=True)
 
         # KHU VỰC XEM TRỰC TIẾP PHIẾU XUẤT (ẢNH PNG)
         if st.session_state.get(f"show_preview_{ma_don}", False):
             png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
             with st.container(border=True):
                 st.image(png_bytes, use_container_width=True)
-                st.download_button("📥 Tải ảnh này về máy (PNG)", data=png_bytes,
+                st.download_button("📥 Tải ảnh phiếu xuất (PNG)", data=png_bytes,
                                     file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
                                     key=f"dl_inside_{ma_don}", use_container_width=True)
 
-        # KHU VỰC TẢI THẲNG LÊN GOOGLE DRIVE & XÓA ĐƠN HÀNG TRONG CÙNG 1 KHUNG EXPANDER
+        # KHU VỰC TẢI THẲNG LÊN GOOGLE DRIVE & XÓA ĐƠN HÀNG
         c_exp1, c_exp2 = st.columns(2)
         with c_exp1:
             with st.expander("☁️ **Quản lý Hóa đơn VAT**", expanded=False):
@@ -1018,47 +1097,61 @@ def render_order_detail_inline(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# 1. TRANG CHỦ (3 Ô TRẠNG THÁI: LÊN ĐƠN | GỬI KHO | ĐANG GIAO / CHƯA TT)
+# 1. TRANG CHỦ
 # ---------------------------------------------------------------------------
 if nav == "🏠 Trang chủ":
-    pending = don_hang_df[don_hang_df["Trang_thai"].isin(["Lên đơn", "Gửi kho", "Đang giao hàng", "Chưa Thanh toán"])] if not don_hang_df.empty else pd.DataFrame()
-    so_don_pending = len(pending)
+    # Các đơn cần xử lý giao nhận: Lên đơn, Gửi kho, Đang giao
+    pending_delivery = don_hang_df[don_hang_df["Trang_thai_Don"].isin(["Lên đơn", "Gửi kho", "Đang giao"])] if not don_hang_df.empty else pd.DataFrame()
     
-    banner("Trang chủ", subtitle="Xin chào, Coco", highlight_text=f"{so_don_pending} đơn cần xử lý")
+    # Các đơn chưa thanh toán
+    unpaid_orders = don_hang_df[don_hang_df["Trang_thai_TT"] == "Chưa thanh toán"] if not don_hang_df.empty else pd.DataFrame()
+    
+    so_don_pending = len(pending_delivery)
+    banner("Trang chủ", subtitle="Xin chào, Coco", highlight_text=f"{so_don_pending} đơn đang vận hành")
 
     if don_hang_df.empty:
         st.info("Chưa có đơn hàng nào.")
     else:
-        counts = don_hang_df["Trang_thai"].value_counts()
-        c1, c2, c3 = st.columns(3)
+        counts_order = don_hang_df["Trang_thai_Don"].value_counts()
+        counts_pay = don_hang_df["Trang_thai_TT"].value_counts()
         
-        # Ô 1: Lên đơn (Màu xanh dương)
-        c1.markdown(f"""
-        <div class="metric-box" style="background:{BLUE_BG};border-color:#BFDBFE;">
-            <div class="metric-value" style="color:{BLUE};margin-top:0;">{int(counts.get('Lên đơn', 0))}</div>
-            <div class="metric-label" style="color:#1E40AF;font-weight:600;">Lên đơn</div>
-        </div>""", unsafe_allow_html=True)
-        
-        # Ô 2: Gửi kho (Màu tím)
-        c2.markdown(f"""
-        <div class="metric-box" style="background:{PURPLE_BG};border-color:#DDD6FE;">
-            <div class="metric-value" style="color:{PURPLE};margin-top:0;">{int(counts.get('Gửi kho', 0))}</div>
-            <div class="metric-label" style="color:#5B21B6;font-weight:600;">Gửi kho</div>
-        </div>""", unsafe_allow_html=True)
-        
-        # Ô 3: Đang giao / Chưa TT (Màu đỏ)
-        c3.markdown(f"""
-        <div class="metric-box" style="background:{RED_BG};border-color:#FECACA;">
-            <div class="metric-value" style="color:{RED};margin-top:0;">{int(counts.get('Đang giao hàng', 0)) + int(counts.get('Chưa Thanh toán', 0))}</div>
-            <div class="metric-label" style="color:#991B1B;font-weight:600;">Đang giao / Chưa TT</div>
-        </div>""", unsafe_allow_html=True)
+        # HÀNG 1: TIẾN ĐỘ ĐƠN HÀNG (LÊN ĐƠN | GỬI KHO | ĐANG GIAO | ĐÃ GIAO)
+        st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-bottom:6px;'>📦 TIẾN ĐỘ VẬN HÀNH ĐƠN HÀNG</div>", unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.markdown(f"""<div class="metric-box" style="background:{BLUE_BG};border-color:#BFDBFE;">
+            <div class="metric-value" style="color:{BLUE};margin-top:0;">{int(counts_order.get('Lên đơn', 0))}</div>
+            <div class="metric-label" style="color:#1E40AF;font-weight:600;">Lên đơn</div></div>""", unsafe_allow_html=True)
+        c2.markdown(f"""<div class="metric-box" style="background:{PURPLE_BG};border-color:#DDD6FE;">
+            <div class="metric-value" style="color:{PURPLE};margin-top:0;">{int(counts_order.get('Gửi kho', 0))}</div>
+            <div class="metric-label" style="color:#5B21B6;font-weight:600;">Gửi kho</div></div>""", unsafe_allow_html=True)
+        c3.markdown(f"""<div class="metric-box" style="background:{AMBER_BG};border-color:#FDE68A;">
+            <div class="metric-value" style="color:{AMBER};margin-top:0;">{int(counts_order.get('Đang giao', 0))}</div>
+            <div class="metric-label" style="color:#92400E;font-weight:600;">Đang giao</div></div>""", unsafe_allow_html=True)
+        c4.markdown(f"""<div class="metric-box" style="background:{GREEN_BG};border-color:#A7F3D0;">
+            <div class="metric-value" style="color:{GREEN};margin-top:0;">{int(counts_order.get('Đã giao', 0))}</div>
+            <div class="metric-label" style="color:{GREEN};font-weight:600;">Đã giao</div></div>""", unsafe_allow_html=True)
 
         st.write("")
-        st.markdown("<div style='font-size:13.5px;font-weight:700;color:#374151;margin-bottom:6px;'>ĐƠN CẦN XỬ LÝ</div>", unsafe_allow_html=True)
+        # HÀNG 2: TIẾN ĐỘ THANH TOÁN & VAT
+        st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-bottom:6px;'>💳 TIẾN ĐỘ THANH TOÁN & HÓA ĐƠN VAT</div>", unsafe_allow_html=True)
+        p1, p2, p3, p4 = st.columns(4)
+        p1.markdown(f"""<div class="metric-box" style="background:{RED_BG};border-color:#FECACA;">
+            <div class="metric-value" style="color:{RED};margin-top:0;">{int(counts_pay.get('Chưa thanh toán', 0))}</div>
+            <div class="metric-label" style="color:#991B1B;font-weight:600;">Chưa TT</div></div>""", unsafe_allow_html=True)
+        p2.markdown(f"""<div class="metric-box" style="background:{ORANGE_BG};border-color:#FED7AA;">
+            <div class="metric-value" style="color:{ORANGE};margin-top:0;">{int(counts_pay.get('TT - Nháp VAT', 0))}</div>
+            <div class="metric-label" style="color:#C2410C;font-weight:600;">Nháp VAT</div></div>""", unsafe_allow_html=True)
+        p3.markdown(f"""<div class="metric-box" style="background:{TEAL_BG};border-color:#99F6E4;">
+            <div class="metric-value" style="color:{TEAL};margin-top:0;">{int(counts_pay.get('TT - không VAT', 0))}</div>
+            <div class="metric-label" style="color:#0F766E;font-weight:600;">Không VAT</div></div>""", unsafe_allow_html=True)
+        p4.markdown(f"""<div class="metric-box" style="background:{GREEN_BG};border-color:#A7F3D0;">
+            <div class="metric-value" style="color:{GREEN};margin-top:0;">{int(counts_pay.get('TT - Đã VAT', 0))}</div>
+            <div class="metric-label" style="color:{GREEN};font-weight:600;">Đã VAT</div></div>""", unsafe_allow_html=True)
+
+        st.write("")
+        st.markdown("<div style='font-size:13.5px;font-weight:700;color:#374151;margin-bottom:6px;'>ĐƠN CẦN XỬ LÝ GẦN ĐÂY</div>", unsafe_allow_html=True)
         
-        pending_view = pending.sort_values("Ma_don", ascending=False).head(6)
-        if pending_view.empty:
-            st.caption("Hiện không có đơn nào cần xử lý.")
+        pending_view = don_hang_df.sort_values("Ma_don", ascending=False).head(6)
         
         for _, r in pending_view.iterrows():
             kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
@@ -1069,7 +1162,7 @@ if nav == "🏠 Trang chủ":
             is_expanded = (st.session_state.selected_order == r["Ma_don"])
             
             with st.container(border=True):
-                col_left, col_right = st.columns([2.8, 1.2])
+                col_left, col_right = st.columns([2.6, 1.4])
                 with col_left:
                     st.markdown(f"""
                     <div class="order-code-compact">{r['Ma_don']}</div>
@@ -1077,7 +1170,11 @@ if nav == "🏠 Trang chủ":
                     <div class="order-value-compact">{money(order_total(r['Ma_don']))}</div>
                     """, unsafe_allow_html=True)
                 with col_right:
-                    st.markdown(f"<div style='text-align:right;margin-bottom:6px;'>{status_badge_html(r['Trang_thai'])}</div>", unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style='text-align:right;margin-bottom:4px;'>
+                        {order_status_badge_html(r.get('Trang_thai_Don'))} {payment_status_badge_html(r.get('Trang_thai_TT'))}
+                    </div>
+                    """, unsafe_allow_html=True)
                     btn_text = "Đóng chi tiết" if is_expanded else "Xem chi tiết"
                     if st.button(btn_text, key=f"home_view_{r['Ma_don']}", use_container_width=True):
                         st.session_state.selected_order = None if is_expanded else r["Ma_don"]
@@ -1092,22 +1189,28 @@ if nav == "🏠 Trang chủ":
         st.rerun()
 
 # ---------------------------------------------------------------------------
-# 2. DANH SÁCH ĐƠN HÀNG (HIỂN THỊ CHI TIẾT NGAY BÊN DƯỚI ĐƠN ĐƯỢC CHỌN)
+# 2. DANH SÁCH ĐƠN HÀNG (LỌC TIẾN ĐỘ GIAO & TIẾN ĐỘ THANH TOÁN)
 # ---------------------------------------------------------------------------
 elif nav == "📦 Đơn hàng":
     banner("Danh sách đơn hàng")
 
-    filter_status = st.selectbox("Lọc theo trạng thái đơn hàng", ["Tất cả"] + ALL_STATUSES)
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        filter_order_st = st.selectbox("Lọc tiến độ giao hàng", ["Tất cả"] + ORDER_STATUSES)
+    with col_f2:
+        filter_pay_st = st.selectbox("Lọc thanh toán & VAT", ["Tất cả"] + PAYMENT_STATUSES)
     
     view_df = don_hang_df.copy()
-    if filter_status != "Tất cả":
-        view_df = view_df[view_df["Trang_thai"] == filter_status]
+    if filter_order_st != "Tất cả":
+        view_df = view_df[view_df["Trang_thai_Don"] == filter_order_st]
+    if filter_pay_st != "Tất cả":
+        view_df = view_df[view_df["Trang_thai_TT"] == filter_pay_st]
     
     view_df = view_df.sort_values("Ma_don", ascending=False)
 
     st.write("")
     if view_df.empty:
-        st.info("Không có đơn hàng nào phù hợp.")
+        st.info("Không có đơn hàng nào phù hợp với bộ lọc.")
     
     for _, r in view_df.iterrows():
         kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
@@ -1118,7 +1221,7 @@ elif nav == "📦 Đơn hàng":
         is_expanded = (st.session_state.selected_order == r["Ma_don"])
         
         with st.container(border=True):
-            col_info, col_action = st.columns([2.8, 1.2])
+            col_info, col_action = st.columns([2.6, 1.4])
             with col_info:
                 st.markdown(f"""
                 <div class="order-code-compact">{r['Ma_don']}</div>
@@ -1126,7 +1229,11 @@ elif nav == "📦 Đơn hàng":
                 <div class="order-value-compact">{money(order_total(r['Ma_don']))}</div>
                 """, unsafe_allow_html=True)
             with col_action:
-                st.markdown(f"<div style='text-align:right;margin-bottom:6px;'>{status_badge_html(r['Trang_thai'])}</div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                <div style='text-align:right;margin-bottom:4px;'>
+                    {order_status_badge_html(r.get('Trang_thai_Don'))} {payment_status_badge_html(r.get('Trang_thai_TT'))}
+                </div>
+                """, unsafe_allow_html=True)
                 btn_text = "Đóng chi tiết" if is_expanded else "Xem chi tiết"
                 if st.button(btn_text, key=f"list_view_{r['Ma_don']}", use_container_width=True):
                     st.session_state.selected_order = None if is_expanded else r["Ma_don"]
@@ -1136,7 +1243,7 @@ elif nav == "📦 Đơn hàng":
             render_order_detail_inline(r["Ma_don"])
 
 # ---------------------------------------------------------------------------
-# 3. LÊN ĐƠN HÀNG (RESET TRẠNG THÁI & CHUẨN HÓA DỮ LIỆU GSPREAD)
+# 3. LÊN ĐƠN HÀNG
 # ---------------------------------------------------------------------------
 elif nav == "➕ Lên đơn":
     banner("Lên đơn hàng")
@@ -1221,7 +1328,8 @@ elif nav == "➕ Lên đơn":
             str(ghi_chu_tt),
             str(ngay_len_don.strftime("%Y-%m-%d")),
             int(ngay_len_don.month),
-            int(ngay_len_don.year)
+            int(ngay_len_don.year),
+            "Chưa thanh toán"  # Cột K: Trang_thai_TT mặc định
         ]
         
         don_hang_ws.append_row(don_hang_row_data, value_input_option="USER_ENTERED")
@@ -1260,7 +1368,7 @@ elif nav == "➕ Lên đơn":
         st.rerun()
 
 # ---------------------------------------------------------------------------
-# 4. LƯƠNG SALE (ĐẠT = 2% CÁ NHÂN + 1% TÂN + 1% ĐỨC)
+# 4. LƯƠNG SALE (CĂN CỨ THEO ĐƠN HỢP LỆ: TỪ GỬI KHO / ĐANG GIAO TRỞ ĐI)
 # ---------------------------------------------------------------------------
 elif nav == "💰 Lương Sale":
     banner("Doanh số & Lương Sale")
@@ -1281,7 +1389,8 @@ elif nav == "💰 Lương Sale":
         ma_nv = nv_row["Ma_NV"]
         ty_le_hh = float(nv_row.get("Ty_le_hoa_hong") or 0.02)
 
-        valid = merged[merged["Trang_thai"].isin(VALID_STATUSES)].copy()
+        # Đơn hợp lệ: Từ trạng thái Gửi kho, Đang giao, Đã giao trở đi (loại trừ "Lên đơn")
+        valid = merged[merged["Trang_thai_Don"].isin(["Gửi kho", "Đang giao", "Đã giao"])].copy()
         valid["Ngay_len_don"] = pd.to_datetime(valid["Ngay_len_don"], errors="coerce")
         of_sale = valid[(valid["Sale_phu_trach"] == ma_nv) &
                          (valid["Ngay_len_don"].dt.month == thang) &
@@ -1322,7 +1431,7 @@ elif nav == "💰 Lương Sale":
 
         luong_tong = luong_co_ban + thuong_tan + thuong_duc
 
-        st.caption("Tính theo tất cả các đơn hàng đã duyệt xuất kho trở đi (ngoại trừ trạng thái 'Lên đơn').")
+        st.caption("Căn cứ tính: Tất cả đơn hàng hợp lệ đã xuất kho / đang giao trở đi (loại trừ trạng thái 'Lên đơn').")
 
         if is_dat and (thuong_tan > 0 or thuong_duc > 0):
             c1, c2 = st.columns(2)
@@ -1384,7 +1493,7 @@ elif nav == "💰 Lương Sale":
             st.dataframe(by_sp, hide_index=True, use_container_width=True)
 
 # ---------------------------------------------------------------------------
-# 5. DASHBOARD TỔNG QUAN
+# 5. DASHBOARD TỔNG QUAN (TÍNH THEO TIẾN ĐỘ ĐƠN HỢP LỆ VÀ CÔNG NỢ)
 # ---------------------------------------------------------------------------
 elif nav == "📊 Dashboard":
     banner("Tổng quan")
@@ -1398,19 +1507,19 @@ elif nav == "📊 Dashboard":
         with col2:
             nam = st.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1)
 
-        valid = merged[merged["Trang_thai"].isin(VALID_STATUSES)].copy()
+        valid = merged[merged["Trang_thai_Don"].isin(["Gửi kho", "Đang giao", "Đã giao"])].copy()
         valid["Ngay_len_don"] = pd.to_datetime(valid["Ngay_len_don"], errors="coerce")
         period = valid[(valid["Ngay_len_don"].dt.month == thang) & (valid["Ngay_len_don"].dt.year == nam)]
 
         doanh_thu = period["Thanh_tien"].sum()
         san_luong = period["San_luong_xuat_kho"].sum()
         so_don = period["Ma_don"].nunique()
-        cong_no_count = don_hang_df[don_hang_df["Trang_thai"] != "Đã nhận hàng"].shape[0]
+        cong_no_count = don_hang_df[don_hang_df["Trang_thai_TT"] == "Chưa thanh toán"].shape[0]
 
         c1, c2 = st.columns(2)
         c1.markdown(f"""
         <div class="metric-box">
-            <div class="metric-label">Doanh thu</div>
+            <div class="metric-label">Doanh thu hợp lệ</div>
             <div class="metric-value" style="color:{GREEN}">{money(doanh_thu)}</div>
         </div>""", unsafe_allow_html=True)
         c2.markdown(f"""
@@ -1423,12 +1532,12 @@ elif nav == "📊 Dashboard":
         c3, c4 = st.columns(2)
         c3.markdown(f"""
         <div class="metric-box">
-            <div class="metric-label">Đang giao</div>
-            <div class="metric-value">{int(don_hang_df[don_hang_df['Trang_thai'] == 'Đang giao hàng'].shape[0])}</div>
+            <div class="metric-label">Đơn đang giao hàng</div>
+            <div class="metric-value">{int(don_hang_df[don_hang_df['Trang_thai_Don'] == 'Đang giao'].shape[0])}</div>
         </div>""", unsafe_allow_html=True)
         c4.markdown(f"""
         <div class="metric-box">
-            <div class="metric-label">Đơn chưa nhận</div>
+            <div class="metric-label">Đơn chưa thanh toán</div>
             <div class="metric-value" style="color:{RED}">{cong_no_count}</div>
         </div>""", unsafe_allow_html=True)
 
