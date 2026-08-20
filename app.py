@@ -1349,22 +1349,31 @@ if nav == "🏠 Trang chủ":
         st.rerun()
 
 # ---------------------------------------------------------------------------
-# 2. DANH SÁCH ĐƠN HÀNG (LỌC TIẾN ĐỘ GIAO & TIẾN ĐỘ THANH TOÁN)
+# 2. DANH SÁCH ĐƠN HÀNG (3 Ô LỌC TRÊN CÙNG 1 HÀNG: TIẾN ĐỘ, THANH TOÁN, NPP)
 # ---------------------------------------------------------------------------
 elif nav == "📦 Đơn hàng":
     banner("Danh sách đơn hàng")
 
-    col_f1, col_f2 = st.columns(2)
+    # Danh sách Nhà phân phối có trong hệ thống
+    raw_npp_list = sorted([str(x).strip() for x in khach_hang_df["Ten_NPP"].dropna().unique() if str(x).strip()])
+    list_npp_filter = ["Tất cả"] + raw_npp_list
+
+    col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-        filter_order_st = st.selectbox("Lọc tiến độ giao hàng", ["Tất cả"] + ORDER_STATUSES)
+        filter_order_st = st.selectbox("Lọc tiến độ giao hàng", ["Tất cả"] + ORDER_STATUSES, key="filter_order_st")
     with col_f2:
-        filter_pay_st = st.selectbox("Lọc thanh toán & VAT", ["Tất cả"] + PAYMENT_STATUSES)
+        filter_pay_st = st.selectbox("Lọc thanh toán & VAT", ["Tất cả"] + PAYMENT_STATUSES, key="filter_pay_st")
+    with col_f3:
+        filter_npp = st.selectbox("Lọc theo Nhà phân phối", list_npp_filter, key="filter_npp")
     
     view_df = don_hang_df.copy()
     if filter_order_st != "Tất cả":
         view_df = view_df[view_df["Trang_thai_Don"] == filter_order_st]
     if filter_pay_st != "Tất cả":
         view_df = view_df[view_df["Trang_thai_TT"] == filter_pay_st]
+    if filter_npp != "Tất cả":
+        matching_kh_ids = khach_hang_df[khach_hang_df["Ten_NPP"] == filter_npp]["Ma_KH"].dropna().tolist()
+        view_df = view_df[view_df["Ma_KH"].isin(matching_kh_ids)]
     
     view_df = view_df.sort_values("Ma_don", ascending=False)
 
@@ -1673,7 +1682,6 @@ elif nav == "📊 Dashboard":
         doanh_thu = period["Thanh_tien"].sum()
         san_luong = period["San_luong_xuat_kho"].sum()
         so_don = period["Ma_don"].nunique()
-        # Đơn chưa thanh toán: tính các đơn thuộc nhóm Chưa TT
         cong_no_count = don_hang_df[don_hang_df["Trang_thai_TT"].str.startswith("Chưa", na=False)].shape[0]
 
         c1, c2 = st.columns(2)
