@@ -94,7 +94,7 @@ def get_qr_bank_image():
     return None
 
 # ---------------------------------------------------------------------------
-# CSS RESPONSIVE & BỐ CỤC GIAO DIỆN
+# CSS RESPONSIVE, THU GỌN KHOẢNG CÁCH & BỐ CỤC GIAO DIỆN
 # ---------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -106,7 +106,7 @@ header[data-testid="stHeader"] {
 /* Desktop */
 .block-container {
     max-width: 960px !important;
-    padding-top: 4rem !important;
+    padding-top: 3.5rem !important;
     padding-bottom: 3rem !important;
     padding-left: 1.25rem !important;
     padding-right: 1.25rem !important;
@@ -230,13 +230,6 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     margin-top: 3px;
 }
 
-.product-item-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: #15503F;
-    margin-bottom: 6px;
-}
-
 /* Khung hiển thị thông tin gửi hàng nhanh */
 .quick-order-card {
     background-color: #F8FAF9;
@@ -260,6 +253,41 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 .quick-order-card .value {
     color: #374151;
     font-weight: 400;
+}
+
+/* TỐI ƯU KHOẢNG CÁCH FORM LÊN ĐƠN GỌN GÀNG */
+.order-item-box {
+    background-color: #ffffff;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+}
+.order-item-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #15503F;
+    margin-bottom: 4px;
+}
+.order-live-total-card {
+    background-color: #E2EDE8;
+    border: 1.5px solid #15503F;
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 12px 0;
+}
+.order-live-total-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #15503F;
+}
+.order-live-total-value {
+    font-size: 21px;
+    font-weight: 800;
+    color: #D92B2B;
 }
 
 /* Thanh điều hướng */
@@ -287,7 +315,7 @@ div.stButton > button[kind="primary"] {
     font-weight: 600 !important;
 }
 
-/* STYLING RIÊNG CHO TỪNG THẺ STATS NỀN MÀU / SỐ TO / CHỮ RÕ NHƯ BẢN CŨ */
+/* STYLING RIÊNG CHO TỪNG THẺ STATS NỀN MÀU / SỐ TO / CHỮ RÕ */
 .card-wrapper {
     position: relative;
     border-radius: 14px;
@@ -319,7 +347,6 @@ div.stButton > button[kind="primary"] {
     text-overflow: ellipsis;
 }
 
-/* Nút bấm Streamlit tàng hình phủ lên toàn bộ thẻ để bấm được */
 div[class*="st-key-btn_filter_"] {
     margin-top: -65px;
     opacity: 0;
@@ -1354,7 +1381,6 @@ if nav == "🏠 Trang chủ":
 elif nav == "📦 Đơn hàng":
     banner("Danh sách đơn hàng")
 
-    # Danh sách Nhà phân phối có trong hệ thống
     raw_npp_list = sorted([str(x).strip() for x in khach_hang_df["Ten_NPP"].dropna().unique() if str(x).strip()])
     list_npp_filter = ["Tất cả"] + raw_npp_list
 
@@ -1412,7 +1438,7 @@ elif nav == "📦 Đơn hàng":
             render_order_detail_inline(r["Ma_don"])
 
 # ---------------------------------------------------------------------------
-# 3. LÊN ĐƠN HÀNG
+# 3. LÊN ĐƠN HÀNG (KHOẢNG CÁCH THU GỌN + LIVE TỔNG GIÁ TRỊ ĐƠN HÀNG)
 # ---------------------------------------------------------------------------
 elif nav == "➕ Lên đơn":
     banner("Lên đơn hàng")
@@ -1440,28 +1466,37 @@ elif nav == "➕ Lên đơn":
         
         ghi_chu_tt = st.text_input("Ghi chú thanh toán", "", key=f"form_note_{v}")
 
-        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin-12px 0 8px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
 
         line_items = []
         ten_sp_list = san_pham_df["Ten_SP"].dropna().tolist()
+        estimated_total_order = 0.0
         
         for i in range(st.session_state.order_items_count):
-            st.markdown(f"""<div class="product-item-title">Sản phẩm #{i+1}</div>""", unsafe_allow_html=True)
-            
-            ten_sp = st.selectbox(f"Chọn SP #{i+1}", ten_sp_list, key=f"sp_{v}_{i}", label_visibility="collapsed")
-            
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                sl_dat = st.number_input("SL đặt", min_value=0, value=0, key=f"sl_{v}_{i}")
-            with c2:
-                tang = st.number_input("Tặng", min_value=0.0, value=0.0, step=0.1, key=f"tang_{v}_{i}")
-            with c3:
-                chiet_khau = st.number_input("CK (đ)", min_value=0, value=0, step=10000, key=f"ck_{v}_{i}")
-                if chiet_khau > 0:
-                    st.caption(f"↳ {money(chiet_khau)}")
-            
-            st.markdown("<div style='height:1px;background:#edf0ed;margin:10px 0;'></div>", unsafe_allow_html=True)
-            line_items.append((ten_sp, sl_dat, tang, chiet_khau))
+            with st.container():
+                st.markdown(f"""
+                <div class="order-item-box">
+                    <div class="order-item-title">Sản phẩm #{i+1}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                ten_sp = st.selectbox(f"Chọn SP #{i+1}", ten_sp_list, key=f"sp_{v}_{i}", label_visibility="collapsed")
+                
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    sl_dat = st.number_input("SL đặt", min_value=0, value=0, key=f"sl_{v}_{i}")
+                with c2:
+                    tang = st.number_input("Tặng", min_value=0.0, value=0.0, step=0.1, key=f"tang_{v}_{i}")
+                with c3:
+                    chiet_khau = st.number_input("CK (đ)", min_value=0, value=0, step=10000, key=f"ck_{v}_{i}")
+
+                # Tính nhẩm tổng tiền tạm tính trực tiếp theo giá ngày chọn
+                ma_sp_lookup = safe_str(san_pham_df[san_pham_df["Ten_SP"] == ten_sp].iloc[0]["Ma_SP"]) if not san_pham_df[san_pham_df["Ten_SP"] == ten_sp].empty else ""
+                current_price = float(lookup_gia(ma_sp_lookup, ngay_len_don, lich_su_gia_df)) if ma_sp_lookup else 0.0
+                row_thanh_tien = max(0.0, (float(sl_dat) * current_price) - float(chiet_khau))
+                estimated_total_order += row_thanh_tien
+
+                line_items.append((ten_sp, sl_dat, tang, chiet_khau))
 
         col_add, col_remove = st.columns(2)
         with col_add:
@@ -1473,6 +1508,14 @@ elif nav == "➕ Lên đơn":
                 if st.button("➖ Bớt sản phẩm", key="btn_remove_product", use_container_width=True):
                     st.session_state.order_items_count -= 1
                     st.rerun()
+
+        # Ô HIỂN THỊ TỔNG GIÁ TRỊ ĐƠN HÀNG DỰ KIẾN (TRỰC QUAN, RÕ RÀNG)
+        st.markdown(f"""
+        <div class="order-live-total-card">
+            <span class="order-live-total-title">TỔNG GIÁ TRỊ ĐƠN HÀNG (DỰ KIẾN):</span>
+            <span class="order-live-total-value">{money(estimated_total_order)}</span>
+        </div>
+        """, unsafe_allow_html=True)
 
         st.write("")
         submitted = st.button("✅ Tạo đơn hàng", use_container_width=True, type="primary")
