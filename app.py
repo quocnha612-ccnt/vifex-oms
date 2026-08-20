@@ -230,6 +230,13 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     margin-top: 3px;
 }
 
+.product-item-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #15503F;
+    margin-bottom: 6px;
+}
+
 /* Khung hiển thị thông tin gửi hàng nhanh */
 .quick-order-card {
     background-color: #F8FAF9;
@@ -1438,7 +1445,7 @@ elif nav == "📦 Đơn hàng":
             render_order_detail_inline(r["Ma_don"])
 
 # ---------------------------------------------------------------------------
-# 3. LÊN ĐƠN HÀNG (KHOẢNG CÁCH THU GỌN + LIVE TỔNG GIÁ TRỊ ĐƠN HÀNG)
+# 3. LÊN ĐƠN HÀNG (KHOẢNG CÁCH THU GỌN + LIVE TỔNG GIÁ TRỊ ĐƠN HÀNG + HIỂN THỊ CHẤM HÀNG ĐƠN VỊ TIỀN)
 # ---------------------------------------------------------------------------
 elif nav == "➕ Lên đơn":
     banner("Lên đơn hàng")
@@ -1489,6 +1496,8 @@ elif nav == "➕ Lên đơn":
                     tang = st.number_input("Tặng", min_value=0.0, value=0.0, step=0.1, key=f"tang_{v}_{i}")
                 with c3:
                     chiet_khau = st.number_input("CK (đ)", min_value=0, value=0, step=10000, key=f"ck_{v}_{i}")
+                    if chiet_khau > 0:
+                        st.caption(f"↳ {money(chiet_khau)}")
 
                 # Tính nhẩm tổng tiền tạm tính trực tiếp theo giá ngày chọn
                 ma_sp_lookup = safe_str(san_pham_df[san_pham_df["Ten_SP"] == ten_sp].iloc[0]["Ma_SP"]) if not san_pham_df[san_pham_df["Ten_SP"] == ten_sp].empty else ""
