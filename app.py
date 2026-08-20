@@ -220,6 +220,18 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     margin-bottom: 6px;
 }
 
+.quick-order-text-box {
+    background-color: #F8FAF9;
+    border: 1px dashed #15503F;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: #1F2937;
+    margin: 10px 0;
+}
+
 /* Thanh điều hướng Desktop */
 div[class*="st-key-vifex_nav"] {
     margin-bottom: 12px;
@@ -317,13 +329,12 @@ def banner(title, subtitle=None, highlight_text=None):
 
 
 def status_badge_html(status):
-    # Hệ thống màu sắc nhận diện riêng biệt từng trạng thái
     colors = {
-        "Lên đơn": (BLUE, BLUE_BG),               # Xanh dương
-        "Gửi kho": (PURPLE, PURPLE_BG),           # Tím
-        "Đang giao hàng": (AMBER, AMBER_BG),      # Vàng hổ phách
-        "Đã nhận hàng": (GREEN, GREEN_BG),        # Xanh lá cây
-        "Chưa Thanh toán": (RED, RED_BG),         # Đỏ
+        "Lên đơn": (BLUE, BLUE_BG),
+        "Gửi kho": (PURPLE, PURPLE_BG),
+        "Đang giao hàng": (AMBER, AMBER_BG),
+        "Đã nhận hàng": (GREEN, GREEN_BG),
+        "Chưa Thanh toán": (RED, RED_BG),
     }
     fg, bg = colors.get(status, (GRAY_TEXT, GRAY_BG))
     return f'<span class="badge" style="background:{bg};color:{fg}">{status}</span>'
@@ -602,7 +613,7 @@ def delete_vat_record(ma_don):
 
 
 # ---------------------------------------------------------------------------
-# Ảnh phiếu xuất đơn hàng (TÍCH HỢP MÃ QR & THÔNG TIN VIETINBANK CHUẨN NÉT)
+# Ảnh phiếu xuất đơn hàng (CÓ MST ĐẶT Ở GÓC PHẢI TRÊN VÀ MÃ QR THANH TOÁN)
 # ---------------------------------------------------------------------------
 @st.cache_resource
 def get_font(size):
@@ -675,8 +686,19 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
     ten_npp = safe_str(khach_hang_row.get("Ten_NPP"))
     dia_chi_giao = safe_str(khach_hang_row.get("Dia_chi_giao_phu")) or safe_str(khach_hang_row.get("Dia_chi_GPKD"))
     sdt = safe_str(khach_hang_row.get("SDT_phu"))
+    mst = safe_str(khach_hang_row.get("MST"))
 
-    draw_bold(d, (24, y), f"Mã đơn: {ma_don}", f_h, "black"); y += 26
+    # Vẽ Mã đơn (bên trái)
+    draw_bold(d, (24, y), f"Mã đơn: {ma_don}", f_h, "black")
+    
+    # Vẽ MST của khách (bên phải)
+    if mst:
+        mst_text = f"MST: {mst}"
+        bbox_mst = d.textbbox((0, 0), mst_text, font=f_n)
+        mst_w = bbox_mst[2] - bbox_mst[0]
+        draw_bold(d, (W - 24 - mst_w, y + 1), mst_text, f_n, "black")
+        
+    y += 26
     d.text((24, y), f"Ngày lên đơn: {order_row.get('Ngay_len_don')}", font=f_n, fill="black"); y += 24
     
     if ten_cty:
@@ -733,7 +755,6 @@ def generate_order_slip(ma_don, order_row, items_df, khach_hang_row):
         qr_resized = qr_img.resize((qr_size, qr_size), Image.Resampling.LANCZOS)
         img.paste(qr_resized, (24, y), qr_resized if qr_resized.mode == "RGBA" else None)
         
-        # Thông tin tài khoản đặt cạnh mã QR
         tx = 24 + qr_size + 18
         ty = y + 10
         draw_bold(d, (tx, ty), "THÔNG TIN THANH TOÁN CHUYỂN KHOẢN:", f_h, GREEN); ty += 26
@@ -827,10 +848,13 @@ def render_order_detail_inline(ma_don):
     ma_kh = order_row["Ma_KH"]
 
     items = ctdh_df[ctdh_df["Ma_don"] == ma_don].copy()
-    items = items.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
+    items = items.merge(san_pham_df[["Ma_SP", "Ten_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
 
     ten_cty = safe_str(kh_row.get("Ten_cong_ty_GPKD")) or safe_str(kh_row.get("Ten_NPP"))
     ten_npp = safe_str(kh_row.get("Ten_NPP"))
+    dia_chi_giao = safe_str(kh_row.get("Dia_chi_giao_phu")) or safe_str(kh_row.get("Dia_chi_GPKD"))
+    sdt_nhan = safe_str(kh_row.get("SDT_phu"))
+    ten_nguoi_nhan = safe_str(kh_row.get("Ten_nguoi_nhan_phu"))
 
     with st.container(border=True):
         st.markdown(f"#### Chi tiết đơn: `{ma_don}`")
@@ -841,6 +865,37 @@ def render_order_detail_inline(ma_don):
         st.write(f"**Hình thức thanh toán:** {order_row['Hinh_thuc_thanh_toan']}")
         if safe_str(order_row.get("Ghi_chu_thanh_toan")):
             st.write(f"**Ghi chú:** {order_row['Ghi_chu_thanh_toan']}")
+
+        # -------------------------------------------------------------------
+        # KHU VỰC VĂN BẢN ĐƠN HÀNG NHANH (ĐỊNH DẠNG CHỮ GỌN GÀNG DỄ SAO CHÉP)
+        # -------------------------------------------------------------------
+        nhom_dm_list = items["Nhom_danh_muc"].dropna().unique().tolist()
+        nhom_dm_str = ", ".join(nhom_dm_list) if nhom_dm_list else "Hàng hóa"
+        
+        # Người nhận: Tên + SĐT + Địa chỉ
+        nguoi_nhan_parts = []
+        if ten_nguoi_nhan:
+            nguoi_nhan_parts.append(ten_nguoi_nhan)
+        if sdt_nhan:
+            nguoi_nhan_parts.append(sdt_nhan)
+        if dia_chi_giao:
+            nguoi_nhan_parts.append(dia_chi_giao)
+        nguoi_nhan_str = " - ".join(nguoi_nhan_parts) if nguoi_nhan_parts else "Chưa có thông tin nhận"
+
+        tong_sl_giao = int(items["SL_dat"].sum() + items["Tang"].sum())
+        ghi_chu_don = safe_str(order_row.get("Ghi_chu_thanh_toan")) or "Không có"
+
+        quick_text = (
+            f"Đặt hàng: {nhom_dm_str}\n"
+            f"NPP: {ten_npp}\n"
+            f"Ngày lên đơn: {order_row.get('Ngay_len_don')}\n"
+            f"Người nhận: {nguoi_nhan_str}\n"
+            f"Số lượng: {tong_sl_giao}\n"
+            f"Ghi chú: {ghi_chu_don}"
+        )
+        
+        with st.expander("📋 **Xem nhanh thông tin gửi hàng (dạng chữ):**", expanded=True):
+            st.code(quick_text, language="markdown")
 
         # Tính cột Tổng tiền hàng trước chiết khấu
         items["Tong_tien_hang"] = items["SL_dat"] * items["Don_gia_ap_dung"]
@@ -860,7 +915,7 @@ def render_order_detail_inline(ma_don):
         total = items["Thanh_tien"].sum()
         st.markdown(f"<div style='font-size:16px;font-weight:700;color:{GREEN};text-align:right;'>Tổng cộng: {money(total)}</div>", unsafe_allow_html=True)
         
-        # HÀNG ĐIỀU KHIỂN GỌN GÀNG TRÊN 1 DÒNG (SELECTBOX + LƯU TRẠNG THÁI + PHIẾU XUẤT + XEM VAT)
+        # HÀNG ĐIỀU KHIỂN GỌN GÀNG TRÊN 1 DÒNG
         col_st_sel, col_st_btn, col_slip_btn, col_vat_btn = st.columns([1.6, 1.2, 1.2, 1.2])
         
         with col_st_sel:
@@ -898,7 +953,7 @@ def render_order_detail_inline(ma_don):
                                     file_name=f"{ma_don}_phieu_xuat.png", mime="image/png",
                                     key=f"dl_inside_{ma_don}", use_container_width=True)
 
-        # KHU VỰC TẢI THẲNG LÊN GOOGLE DRIVE & XÓA ĐƠN HÀNG TRONG CÙNG 1 KHUNG EXPANDER GỌN GÀNG
+        # KHU VỰC TẢI THẲNG LÊN GOOGLE DRIVE & XÓA ĐƠN HÀNG TRONG CÙNG 1 KHUNG EXPANDER
         c_exp1, c_exp2 = st.columns(2)
         with c_exp1:
             with st.expander("☁️ **Quản lý Hóa đơn VAT**", expanded=False):
@@ -1191,7 +1246,7 @@ elif nav == "➕ Lên đơn":
         st.rerun()
 
 # ---------------------------------------------------------------------------
-# 4. LƯƠNG SALE (TỰ ĐỘNG CỘNG THÊM 1% HOA HỒNG TỪ SALE TÂN CHO SALE ĐẠT)
+# 4. LƯƠNG SALE (ĐẠT = 2% CÁ NHÂN + 1% TÂN + 1% ĐỨC)
 # ---------------------------------------------------------------------------
 elif nav == "💰 Lương Sale":
     banner("Doanh số & Lương Sale")
@@ -1222,12 +1277,15 @@ elif nav == "💰 Lương Sale":
         doanh_thu_sau_vat = doanh_thu * (1 - 0.08)
         luong_co_ban = doanh_thu_sau_vat * ty_le_hh
 
+        # Kiểm tra nếu là Sale Đạt -> Tìm dữ liệu của Sale Tân (1%) và Sale Đức (1%)
         is_dat = any(kw in str(ten_nv).lower() for kw in ["đạt", "dat"])
         thuong_tan = 0
-        doanh_thu_tan_sau_vat = 0
+        thuong_duc = 0
         ten_nv_tan = ""
+        ten_nv_duc = ""
 
         if is_dat:
+            # 1. Tìm doanh thu của Tân
             tan_rows = nhan_vien_df[nhan_vien_df["Ten_NV"].str.lower().str.contains("tân|tan", na=False)]
             if not tan_rows.empty:
                 ma_tan = tan_rows.iloc[0]["Ma_NV"]
@@ -1239,11 +1297,23 @@ elif nav == "💰 Lương Sale":
                 doanh_thu_tan_sau_vat = doanh_thu_tan * (1 - 0.08)
                 thuong_tan = doanh_thu_tan_sau_vat * 0.01
 
-        luong_tong = luong_co_ban + thuong_tan
+            # 2. Tìm doanh thu của Đức
+            duc_rows = nhan_vien_df[nhan_vien_df["Ten_NV"].str.lower().str.contains("đức|duc", na=False)]
+            if not duc_rows.empty:
+                ma_duc = duc_rows.iloc[0]["Ma_NV"]
+                ten_nv_duc = duc_rows.iloc[0]["Ten_NV"]
+                of_duc = valid[(valid["Sale_phu_trach"] == ma_duc) &
+                               (valid["Ngay_len_don"].dt.month == thang) &
+                               (valid["Ngay_len_don"].dt.year == nam)]
+                doanh_thu_duc = of_duc["Thanh_tien"].sum()
+                doanh_thu_duc_sau_vat = doanh_thu_duc * (1 - 0.08)
+                thuong_duc = doanh_thu_duc_sau_vat * 0.01
+
+        luong_tong = luong_co_ban + thuong_tan + thuong_duc
 
         st.caption("Tính theo tất cả các đơn hàng đã duyệt xuất kho trở đi (ngoại trừ trạng thái 'Lên đơn').")
 
-        if is_dat and thuong_tan > 0:
+        if is_dat and (thuong_tan > 0 or thuong_duc > 0):
             c1, c2 = st.columns(2)
             c1.markdown(f"""<div class="metric-box"><div class="metric-label">Doanh thu cá nhân (sau VAT)</div>
                 <div class="metric-value" style="color:{GREEN}">{money(doanh_thu_sau_vat)}</div></div>""", unsafe_allow_html=True)
@@ -1251,10 +1321,12 @@ elif nav == "💰 Lương Sale":
                 <div class="metric-value">{money(luong_co_ban)}</div></div>""", unsafe_allow_html=True)
             
             st.write("")
-            c3, c4 = st.columns(2)
-            c3.markdown(f"""<div class="metric-box"><div class="metric-label">+ 1% Doanh thu {ten_nv_tan}</div>
+            c3, c4, c5 = st.columns(3)
+            c3.markdown(f"""<div class="metric-box"><div class="metric-label">+ 1% {ten_nv_tan or 'Tân'}</div>
                 <div class="metric-value" style="color:{AMBER}">+{money(thuong_tan)}</div></div>""", unsafe_allow_html=True)
-            c4.markdown(f"""<div class="metric-box"><div class="metric-label">Tổng lương thực nhận</div>
+            c4.markdown(f"""<div class="metric-box"><div class="metric-label">+ 1% {ten_nv_duc or 'Đức'}</div>
+                <div class="metric-value" style="color:{AMBER}">+{money(thuong_duc)}</div></div>""", unsafe_allow_html=True)
+            c5.markdown(f"""<div class="metric-box"><div class="metric-label">Tổng thực nhận</div>
                 <div class="metric-value" style="color:{RED}">{money(luong_tong)}</div></div>""", unsafe_allow_html=True)
         else:
             c1, c2 = st.columns(2)
