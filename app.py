@@ -1395,12 +1395,10 @@ elif nav == "📦 Đơn hàng":
         if not valid_dates.empty:
             dates_series = pd.to_datetime(valid_dates, errors="coerce").dropna()
             
-            # Danh sách các tháng có đơn hàng (sắp xếp mới nhất lên đầu)
             unique_months = dates_series.dt.to_period("M").drop_duplicates().sort_values(ascending=False)
             for m in unique_months:
                 time_options.append(f"Tháng {m.month:02d}/{m.year}")
                 
-            # Danh sách các năm có đơn hàng
             unique_years = dates_series.dt.year.drop_duplicates().sort_values(ascending=False)
             for y in unique_years:
                 opt_y = f"Năm {y}"
@@ -1428,7 +1426,6 @@ elif nav == "📦 Đơn hàng":
     if filter_time != "Tất cả" and not view_df.empty:
         view_dates = pd.to_datetime(view_df["Ngay_len_don"], errors="coerce")
         if filter_time.startswith("Tháng "):
-            # Định dạng: Tháng MM/YYYY
             try:
                 part = filter_time.replace("Tháng ", "").strip()
                 m_val, y_val = map(int, part.split("/"))
@@ -1436,7 +1433,6 @@ elif nav == "📦 Đơn hàng":
             except Exception:
                 pass
         elif filter_time.startswith("Năm "):
-            # Định dạng: Năm YYYY
             try:
                 y_val = int(filter_time.replace("Năm ", "").strip())
                 view_df = view_df[view_dates.dt.year == y_val]
@@ -1451,46 +1447,55 @@ elif nav == "📦 Đơn hàng":
     view_df = view_df.sort_values("Ma_don", ascending=False)
 
     # -----------------------------------------------------------------------
-    # NÚT TẢI VỀ FILE EXCEL DANH SÁCH ĐƠN HÀNG THEO BỘ LỌC
+    # NÚT TẢI VỀ FILE EXCEL DANH SÁCH ĐƠN HÀNG THEO BỘ LỌC (AN TOÀN TUYỆT ĐỐI)
     # -----------------------------------------------------------------------
     if not view_df.empty:
         export_orders = view_df.copy()
         export_orders = export_orders.merge(khach_hang_df[["Ma_KH", "Ten_NPP", "Ten_cong_ty_GPKD", "SDT_phu", "Dia_chi_giao_phu"]], on="Ma_KH", how="left")
         export_orders["Tong_tien"] = export_orders["Ma_don"].apply(order_total)
         
-        out_don_hang = pd.DataFrame({
-            "Mã đơn": export_orders["Ma_don"],
-            "Ngày lên đơn": export_orders["Ngay_len_don"].astype(str),
-            "Nhà phân phối": export_orders["Ten_NPP"],
-            "Tên công ty": export_orders["Ten_cong_ty_GPKD"],
-            "SĐT người nhận": export_orders["SDT_phu"],
-            "Địa chỉ giao": export_orders["Dia_chi_giao_phu"],
-            "Tổng giá trị (VNĐ)": export_orders["Tong_tien"],
-            "Tiến độ giao hàng": export_orders["Trang_thai_Don"],
-            "Thanh toán & VAT": export_orders["Trang_thai_TT"],
-            "Hình thức TT": export_orders["Hinh_thuc_thanh_toan"],
-            "Ghi chú": export_orders["Ghi_chu_thanh_toan"],
-            "Sale phụ trách": export_orders["Sale_phu_trach"]
-        })
+        out_don_hang = pd.DataFrame()
+        out_don_hang["Mã đơn"] = export_orders["Ma_don"]
+        out_don_hang["Ngày lên đơn"] = export_orders["Ngay_len_don"].astype(str)
+        out_don_hang["Nhà phân phối"] = export_orders["Ten_NPP"].fillna("")
+        out_don_hang["Tên công ty"] = export_orders["Ten_cong_ty_GPKD"].fillna("")
+        out_don_hang["SĐT người nhận"] = export_orders["SDT_phu"].fillna("")
+        out_don_hang["Địa chỉ giao"] = export_orders["Dia_chi_giao_phu"].fillna("")
+        out_don_hang["Tổng giá trị (VNĐ)"] = export_orders["Tong_tien"]
+        out_don_hang["Tiến độ giao hàng"] = export_orders["Trang_thai_Don"]
+        out_don_hang["Thanh toán & VAT"] = export_orders["Trang_thai_TT"]
+        out_don_hang["Hình thức TT"] = export_orders["Hinh_thuc_thanh_toan"].fillna("")
+        out_don_hang["Ghi chú"] = export_orders["Ghi_chu_thanh_toan"].fillna("")
+        out_don_hang["Sale phụ trách"] = export_orders["Sale_phu_trach"].fillna("")
         
         filtered_order_ids = view_df["Ma_don"].tolist()
         export_ctdh = ctdh_df[ctdh_df["Ma_don"].isin(filtered_order_ids)].copy()
-        export_ctdh = export_ctdh.merge(san_pham_df[["Ma_SP", "Ten_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
-        export_ctdh = export_ctdh.merge(export_orders[["Ma_don", "Ten_NPP", "Ngay_len_don"]], on="Ma_don", how="left")
         
-        out_ctdh = pd.DataFrame({
-            "Mã đơn": export_ctdh["Ma_don"],
-            "Ngày lên đơn": export_ctdh["Ngay_len_don"].astype(str),
-            "Nhà phân phối": export_ctdh["Ten_NPP"],
-            "Tên sản phẩm": export_ctdh["Ten_SP"],
-            "Danh mục": export_ctdh["Nhom_danh_muc"],
-            "Số lượng đặt": export_ctdh["SL_dat"],
-            "Tặng": export_ctdh["Tang"],
-            "Đơn giá áp dụng": export_ctdh["Don_gia_ap_dung"],
-            "Chiết khấu (VNĐ)": export_ctdh["Chiet_khau"],
-            "Thành tiền (VNĐ)": export_ctdh["Thanh_tien"],
-            "Trạng thái giao": export_ctdh["Trang_thai_CTDH"]
-        })
+        if not export_ctdh.empty:
+            export_ctdh = export_ctdh.merge(san_pham_df[["Ma_SP", "Ten_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
+            export_ctdh = export_ctdh.merge(export_orders[["Ma_don", "Ten_NPP", "Ngay_len_don", "Trang_thai_Don"]], on="Ma_don", how="left")
+            
+            status_col_val = export_ctdh["Trang_thai_Don"]
+            if "Trang_thai_don" in export_ctdh.columns:
+                status_col_val = export_ctdh["Trang_thai_don"].fillna(export_ctdh["Trang_thai_Don"])
+            elif "Trang_thai" in export_ctdh.columns:
+                status_col_val = export_ctdh["Trang_thai"].fillna(export_ctdh["Trang_thai_Don"])
+
+            out_ctdh = pd.DataFrame({
+                "Mã đơn": export_ctdh["Ma_don"],
+                "Ngày lên đơn": export_ctdh["Ngay_len_don"].astype(str),
+                "Nhà phân phối": export_ctdh["Ten_NPP"].fillna(""),
+                "Tên sản phẩm": export_ctdh["Ten_SP"].fillna(""),
+                "Danh mục": export_ctdh["Nhom_danh_muc"].fillna(""),
+                "Số lượng đặt": export_ctdh["SL_dat"],
+                "Tặng": export_ctdh["Tang"],
+                "Đơn giá áp dụng": export_ctdh["Don_gia_ap_dung"],
+                "Chiết khấu (VNĐ)": export_ctdh["Chiet_khau"],
+                "Thành tiền (VNĐ)": export_ctdh["Thanh_tien"],
+                "Trạng thái giao": status_col_val
+            })
+        else:
+            out_ctdh = pd.DataFrame(columns=["Mã đơn", "Tên sản phẩm", "Số lượng đặt", "Thành tiền (VNĐ)"])
 
         excel_bytes = export_df_to_excel({
             "Danh sách đơn hàng": out_don_hang,
@@ -1599,7 +1604,6 @@ elif nav == "➕ Lên đơn":
                     if chiet_khau > 0:
                         st.caption(f"↳ {money(chiet_khau)}")
 
-                # Tính nhẩm tổng tiền tạm tính trực tiếp theo giá ngày chọn
                 ma_sp_lookup = safe_str(san_pham_df[san_pham_df["Ten_SP"] == ten_sp].iloc[0]["Ma_SP"]) if not san_pham_df[san_pham_df["Ten_SP"] == ten_sp].empty else ""
                 current_price = float(lookup_gia(ma_sp_lookup, ngay_len_don, lich_su_gia_df)) if ma_sp_lookup else 0.0
                 row_thanh_tien = max(0.0, (float(sl_dat) * current_price) - float(chiet_khau))
@@ -1618,7 +1622,6 @@ elif nav == "➕ Lên đơn":
                     st.session_state.order_items_count -= 1
                     st.rerun()
 
-        # Ô HIỂN THỊ TỔNG GIÁ TRỊ ĐƠN HÀNG DỰ KIẾN (TRỰC QUAN, RÕ RÀNG)
         st.markdown(f"""
         <div class="order-live-total-card">
             <span class="order-live-total-title">TỔNG GIÁ TRỊ ĐƠN HÀNG (DỰ KIẾN):</span>
