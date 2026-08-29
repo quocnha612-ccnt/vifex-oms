@@ -66,12 +66,23 @@ def money(v):
         return "0đ"
 
 def export_df_to_excel(df_dict):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        for sheet_name, df in df_dict.items():
-            clean_sheet_name = str(sheet_name)[:31]
-            df.to_excel(writer, sheet_name=clean_sheet_name, index=False)
-    return output.getvalue()
+    """
+    Xuất file an toàn tuyệt đối:
+    - Nếu có openpyxl: xuất file .xlsx nhiều sheet.
+    - Nếu chưa cài openpyxl: tự động xuất định dạng CSV UTF-8 (BOM) mở thẳng trên Excel tiếng Việt không lỗi.
+    """
+    try:
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            for sheet_name, df in df_dict.items():
+                clean_sheet_name = str(sheet_name)[:31]
+                df.to_excel(writer, sheet_name=clean_sheet_name, index=False)
+        return output.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
+    except Exception:
+        # Fallback an toàn khi môi trường chưa cài openpyxl
+        first_df = list(df_dict.values())[0] if df_dict else pd.DataFrame()
+        csv_bytes = first_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        return csv_bytes, "text/csv", "csv"
 
 # ---------------------------------------------------------------------------
 # HÀM LOAD ẢNH LOGO & QR DƯỚI DẠNG BASE64 / PIL
@@ -1096,7 +1107,7 @@ def render_order_detail_inline(ma_don):
         st.markdown(f"<div style='font-size:16px;font-weight:700;color:{GREEN};text-align:right;'>Tổng cộng: {money(total)}</div>", unsafe_allow_html=True)
         
         # CẬP NHẬT 2 TRẠNG THÁI
-        st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin:8px 0 4px 0;'>CẬP NHẬT TIẾN ĐỘ ĐƠN HÀNG & THANH TOÁN</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-8px 0 4px 0;'>CẬP NHẬT TIẾN ĐỘ ĐƠN HÀNG & THANH TOÁN</div>", unsafe_allow_html=True)
         c_st1, c_st2, c_st3 = st.columns([1.5, 1.5, 1])
         
         with c_st1:
@@ -1497,7 +1508,7 @@ elif nav == "📦 Đơn hàng":
         else:
             out_ctdh = pd.DataFrame(columns=["Mã đơn", "Tên sản phẩm", "Số lượng đặt", "Thành tiền (VNĐ)"])
 
-        excel_bytes = export_df_to_excel({
+        export_bytes, mime_type, file_ext = export_df_to_excel({
             "Danh sách đơn hàng": out_don_hang,
             "Chi tiết mặt hàng": out_ctdh
         })
@@ -1508,9 +1519,9 @@ elif nav == "📦 Đơn hàng":
         with col_dl:
             st.download_button(
                 label="📥 Tải dữ liệu (Excel)",
-                data=excel_bytes,
-                file_name=f"VIFEX_DonHang_{date.today().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                data=export_bytes,
+                file_name=f"VIFEX_DonHang_{date.today().strftime('%Y%m%d')}.{file_ext}",
+                mime=mime_type,
                 key="btn_download_orders_excel",
                 use_container_width=True
             )
@@ -1842,7 +1853,7 @@ elif nav == "💰 Lương Sale":
                 "Tổng thực nhận (VNĐ)": luong_tong
             }])
             
-            sale_excel_bytes = export_df_to_excel({
+            sale_excel_bytes, s_mime, s_ext = export_df_to_excel({
                 "Tổng hợp lương": sale_summary_df,
                 "Theo Nhà phân phối": df_nhom_export,
                 "Theo sản phẩm": by_sp_export
@@ -1851,8 +1862,8 @@ elif nav == "💰 Lương Sale":
             st.download_button(
                 label="📥 Tải báo cáo Lương & Doanh số (Excel)",
                 data=sale_excel_bytes,
-                file_name=f"Luong_{ten_nv}_T{thang}_{nam}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                file_name=f"Luong_{ten_nv}_T{thang}_{nam}.{s_ext}",
+                mime=s_mime,
                 key="btn_download_salary_excel",
                 use_container_width=True
             )
@@ -1937,7 +1948,7 @@ elif nav == "📊 Dashboard":
             by_sp_export_df = by_sp_grouped.copy()
             by_sp_export_df.columns = ["Tên sản phẩm", "Sản lượng xuất kho", "Doanh thu (VNĐ)"]
 
-            dash_excel_bytes = export_df_to_excel({
+            dash_excel_bytes, d_mime, d_ext = export_df_to_excel({
                 f"Don_hang_T{thang}_{nam}": period_orders,
                 f"San_pham_T{thang}_{nam}": by_sp_export_df
             })
@@ -1945,8 +1956,8 @@ elif nav == "📊 Dashboard":
             st.download_button(
                 label=f"📥 Tải dữ liệu Báo cáo Tháng {thang}/{nam} (Excel)",
                 data=dash_excel_bytes,
-                file_name=f"VIFEX_Dashboard_T{thang}_{nam}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                file_name=f"VIFEX_Dashboard_T{thang}_{nam}.{d_ext}",
+                mime=d_mime,
                 key="btn_download_dashboard_excel",
                 use_container_width=True
             )
@@ -1964,12 +1975,12 @@ elif nav == "👥 Khách hàng":
     with col_k_dl:
         if not show.empty:
             kh_export_df = khach_hang_df.copy()
-            kh_excel_bytes = export_df_to_excel({"Danh sách khách hàng": kh_export_df})
+            kh_excel_bytes, k_mime, k_ext = export_df_to_excel({"Danh sách khách hàng": kh_export_df})
             st.download_button(
                 label="📥 Tải dữ liệu (Excel)",
                 data=kh_excel_bytes,
-                file_name=f"VIFEX_KhachHang_{date.today().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                file_name=f"VIFEX_KhachHang_{date.today().strftime('%Y%m%d')}.{k_ext}",
+                mime=k_mime,
                 key="btn_download_kh_excel",
                 use_container_width=True
             )
