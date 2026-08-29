@@ -59,6 +59,20 @@ def safe_str(v):
     s = str(v).strip()
     return "" if s.lower() == "nan" else s
 
+def money(v):
+    try:
+        return f"{float(v):,.0f}đ".replace(",", ".")
+    except (TypeError, ValueError):
+        return "0đ"
+
+def export_df_to_excel(df_dict):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        for sheet_name, df in df_dict.items():
+            clean_sheet_name = str(sheet_name)[:31]
+            df.to_excel(writer, sheet_name=clean_sheet_name, index=False)
+    return output.getvalue()
+
 # ---------------------------------------------------------------------------
 # HÀM LOAD ẢNH LOGO & QR DƯỚI DẠNG BASE64 / PIL
 # ---------------------------------------------------------------------------
@@ -228,13 +242,6 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     font-size: 19px;
     font-weight: 700;
     margin-top: 3px;
-}
-
-.product-item-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: #15503F;
-    margin-bottom: 6px;
 }
 
 /* Khung hiển thị thông tin gửi hàng nhanh */
@@ -474,13 +481,6 @@ def payment_status_badge_html(status):
     elif any(k in s_low for k in ["chưa thanh toán", "chưa tt"]):
         return f'<span class="badge" style="background:#FFEBEF;color:#E11D48;border:1px solid #FECDD3;">Chưa TT</span>'
     return f'<span class="badge" style="background:{GRAY_BG};color:{GRAY_TEXT}">{status}</span>'
-
-
-def money(v):
-    try:
-        return f"{float(v):,.0f}đ".replace(",", ".")
-    except (TypeError, ValueError):
-        return "0đ"
 
 
 # ---------------------------------------------------------------------------
@@ -1383,10 +1383,29 @@ if nav == "🏠 Trang chủ":
         st.rerun()
 
 # ---------------------------------------------------------------------------
-# 2. DANH SÁCH ĐƠN HÀNG (3 Ô LỌC TRÊN CÙNG 1 HÀNG: TIẾN ĐỘ, THANH TOÁN, NPP)
+# 2. DANH SÁCH ĐƠN HÀNG (3 Ô LỌC: TIẾN ĐỘ, THỜI GIAN, NPP + NÚT TẢI EXCEL)
 # ---------------------------------------------------------------------------
 elif nav == "📦 Đơn hàng":
     banner("Danh sách đơn hàng")
+
+    # Tạo danh sách bộ lọc Thời gian (Tất cả, Năm, Tháng/Năm)
+    time_options = ["Tất cả"]
+    if not don_hang_df.empty:
+        valid_dates = don_hang_df["Ngay_len_don"].dropna()
+        if not valid_dates.empty:
+            dates_series = pd.to_datetime(valid_dates, errors="coerce").dropna()
+            
+            # Danh sách các tháng có đơn hàng (sắp xếp mới nhất lên đầu)
+            unique_months = dates_series.dt.to_period("M").drop_duplicates().sort_values(ascending=False)
+            for m in unique_months:
+                time_options.append(f"Tháng {m.month:02d}/{m.year}")
+                
+            # Danh sách các năm có đơn hàng
+            unique_years = dates_series.dt.year.drop_duplicates().sort_values(ascending=False)
+            for y in unique_years:
+                opt_y = f"Năm {y}"
+                if opt_y not in time_options:
+                    time_options.append(opt_y)
 
     raw_npp_list = sorted([str(x).strip() for x in khach_hang_df["Ten_NPP"].dropna().unique() if str(x).strip()])
     list_npp_filter = ["Tất cả"] + raw_npp_list
@@ -1395,20 +1414,101 @@ elif nav == "📦 Đơn hàng":
     with col_f1:
         filter_order_st = st.selectbox("Lọc tiến độ giao hàng", ["Tất cả"] + ORDER_STATUSES, key="filter_order_st")
     with col_f2:
-        filter_pay_st = st.selectbox("Lọc thanh toán & VAT", ["Tất cả"] + PAYMENT_STATUSES, key="filter_pay_st")
+        filter_time = st.selectbox("Lọc theo thời gian", time_options, key="filter_time")
     with col_f3:
         filter_npp = st.selectbox("Lọc theo Nhà phân phối", list_npp_filter, key="filter_npp")
     
     view_df = don_hang_df.copy()
+    
+    # 1. Lọc theo tiến độ giao hàng
     if filter_order_st != "Tất cả":
         view_df = view_df[view_df["Trang_thai_Don"] == filter_order_st]
-    if filter_pay_st != "Tất cả":
-        view_df = view_df[view_df["Trang_thai_TT"] == filter_pay_st]
-    if filter_npp != "Tất cả":
+        
+    # 2. Lọc theo thời gian (Tháng hoặc Năm)
+    if filter_time != "Tất cả" and not view_df.empty:
+        view_dates = pd.to_datetime(view_df["Ngay_len_don"], errors="coerce")
+        if filter_time.startswith("Tháng "):
+            # Định dạng: Tháng MM/YYYY
+            try:
+                part = filter_time.replace("Tháng ", "").strip()
+                m_val, y_val = map(int, part.split("/"))
+                view_df = view_df[(view_dates.dt.month == m_val) & (view_dates.dt.year == y_val)]
+            except Exception:
+                pass
+        elif filter_time.startswith("Năm "):
+            # Định dạng: Năm YYYY
+            try:
+                y_val = int(filter_time.replace("Năm ", "").strip())
+                view_df = view_df[view_dates.dt.year == y_val]
+            except Exception:
+                pass
+                
+    # 3. Lọc theo Nhà phân phối
+    if filter_npp != "Tất cả" and not view_df.empty:
         matching_kh_ids = khach_hang_df[khach_hang_df["Ten_NPP"] == filter_npp]["Ma_KH"].dropna().tolist()
         view_df = view_df[view_df["Ma_KH"].isin(matching_kh_ids)]
     
     view_df = view_df.sort_values("Ma_don", ascending=False)
+
+    # -----------------------------------------------------------------------
+    # NÚT TẢI VỀ FILE EXCEL DANH SÁCH ĐƠN HÀNG THEO BỘ LỌC
+    # -----------------------------------------------------------------------
+    if not view_df.empty:
+        export_orders = view_df.copy()
+        export_orders = export_orders.merge(khach_hang_df[["Ma_KH", "Ten_NPP", "Ten_cong_ty_GPKD", "SDT_phu", "Dia_chi_giao_phu"]], on="Ma_KH", how="left")
+        export_orders["Tong_tien"] = export_orders["Ma_don"].apply(order_total)
+        
+        out_don_hang = pd.DataFrame({
+            "Mã đơn": export_orders["Ma_don"],
+            "Ngày lên đơn": export_orders["Ngay_len_don"].astype(str),
+            "Nhà phân phối": export_orders["Ten_NPP"],
+            "Tên công ty": export_orders["Ten_cong_ty_GPKD"],
+            "SĐT người nhận": export_orders["SDT_phu"],
+            "Địa chỉ giao": export_orders["Dia_chi_giao_phu"],
+            "Tổng giá trị (VNĐ)": export_orders["Tong_tien"],
+            "Tiến độ giao hàng": export_orders["Trang_thai_Don"],
+            "Thanh toán & VAT": export_orders["Trang_thai_TT"],
+            "Hình thức TT": export_orders["Hinh_thuc_thanh_toan"],
+            "Ghi chú": export_orders["Ghi_chu_thanh_toan"],
+            "Sale phụ trách": export_orders["Sale_phu_trach"]
+        })
+        
+        filtered_order_ids = view_df["Ma_don"].tolist()
+        export_ctdh = ctdh_df[ctdh_df["Ma_don"].isin(filtered_order_ids)].copy()
+        export_ctdh = export_ctdh.merge(san_pham_df[["Ma_SP", "Ten_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
+        export_ctdh = export_ctdh.merge(export_orders[["Ma_don", "Ten_NPP", "Ngay_len_don"]], on="Ma_don", how="left")
+        
+        out_ctdh = pd.DataFrame({
+            "Mã đơn": export_ctdh["Ma_don"],
+            "Ngày lên đơn": export_ctdh["Ngay_len_don"].astype(str),
+            "Nhà phân phối": export_ctdh["Ten_NPP"],
+            "Tên sản phẩm": export_ctdh["Ten_SP"],
+            "Danh mục": export_ctdh["Nhom_danh_muc"],
+            "Số lượng đặt": export_ctdh["SL_dat"],
+            "Tặng": export_ctdh["Tang"],
+            "Đơn giá áp dụng": export_ctdh["Don_gia_ap_dung"],
+            "Chiết khấu (VNĐ)": export_ctdh["Chiet_khau"],
+            "Thành tiền (VNĐ)": export_ctdh["Thanh_tien"],
+            "Trạng thái giao": export_ctdh["Trang_thai_CTDH"]
+        })
+
+        excel_bytes = export_df_to_excel({
+            "Danh sách đơn hàng": out_don_hang,
+            "Chi tiết mặt hàng": out_ctdh
+        })
+
+        col_count, col_dl = st.columns([2.5, 1.5])
+        with col_count:
+            st.caption(f"Đang hiển thị **{len(view_df)}** đơn hàng.")
+        with col_dl:
+            st.download_button(
+                label="📥 Tải dữ liệu (Excel)",
+                data=excel_bytes,
+                file_name=f"VIFEX_DonHang_{date.today().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="btn_download_orders_excel",
+                use_container_width=True
+            )
 
     st.write("")
     if view_df.empty:
@@ -1589,7 +1689,7 @@ elif nav == "➕ Lên đơn":
         st.rerun()
 
 # ---------------------------------------------------------------------------
-# 4. LƯƠNG SALE
+# 4. LƯƠNG SALE (+ NÚT TẢI BÁO CÁO EXCEL LƯƠNG & DOANH SỐ)
 # ---------------------------------------------------------------------------
 elif nav == "💰 Lương Sale":
     banner("Doanh số & Lương Sale")
@@ -1684,6 +1784,10 @@ elif nav == "💰 Lương Sale":
 
         st.write("")
         st.markdown(f"#### 📋 Doanh số theo Nhà phân phối & Nhóm hàng (Tháng {thang}/{nam})")
+        
+        df_nhom_export = pd.DataFrame()
+        by_sp_export = pd.DataFrame()
+
         if of_sale.empty:
             st.caption("Chưa có đơn hợp lệ nào trong tháng này.")
         else:
@@ -1691,29 +1795,67 @@ elif nav == "💰 Lương Sale":
             df_nhom = df_nhom.merge(san_pham_df[["Ma_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
             df_nhom["Nhom_danh_muc"] = df_nhom["Nhom_danh_muc"].fillna("Khác")
 
-            by_npp = df_nhom.groupby(["Ten_NPP", "Nhom_danh_muc"]).agg(
+            by_npp_raw = df_nhom.groupby(["Ten_NPP", "Nhom_danh_muc"]).agg(
                 San_luong=("San_luong_xuat_kho", "sum"),
                 Doanh_thu=("Thanh_tien", "sum"),
             ).reset_index().sort_values(["Ten_NPP", "Doanh_thu"], ascending=[True, False])
 
-            by_npp["Doanh_thu"] = by_npp["Doanh_thu"].apply(money)
-            by_npp.columns = ["Nhà phân phối (NPP)", "Nhóm danh mục", "Sản lượng (Thùng)", "Doanh thu"]
-            st.dataframe(by_npp, hide_index=True, use_container_width=True)
+            df_nhom_export = by_npp_raw.copy()
+            df_nhom_export.columns = ["Nhà phân phối", "Nhóm danh mục", "Sản lượng xuất kho", "Doanh thu (VNĐ)"]
+
+            by_npp_display = by_npp_raw.copy()
+            by_npp_display["Doanh_thu"] = by_npp_display["Doanh_thu"].apply(money)
+            by_npp_display.columns = ["Nhà phân phối (NPP)", "Nhóm danh mục", "Sản lượng (Thùng)", "Doanh thu"]
+            st.dataframe(by_npp_display, hide_index=True, use_container_width=True)
 
         st.write("")
         st.markdown(f"#### 📦 Chi tiết từng mặt hàng đã bán")
         if not of_sale.empty:
-            by_sp = of_sale.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
-            by_sp = by_sp.groupby("Ten_SP").agg(
+            by_sp_raw = of_sale.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
+            by_sp_raw = by_sp_raw.groupby("Ten_SP").agg(
                 San_luong=("San_luong_xuat_kho", "sum"),
                 Doanh_thu=("Thanh_tien", "sum"),
             ).reset_index().sort_values("Doanh_thu", ascending=False)
-            by_sp["Doanh_thu"] = by_sp["Doanh_thu"].apply(money)
-            by_sp.columns = ["Sản phẩm", "Sản lượng", "Doanh thu"]
-            st.dataframe(by_sp, hide_index=True, use_container_width=True)
+            
+            by_sp_export = by_sp_raw.copy()
+            by_sp_export.columns = ["Sản phẩm", "Sản lượng xuất kho", "Doanh thu (VNĐ)"]
+
+            by_sp_display = by_sp_raw.copy()
+            by_sp_display["Doanh_thu"] = by_sp_display["Doanh_thu"].apply(money)
+            by_sp_display.columns = ["Sản phẩm", "Sản lượng", "Doanh thu"]
+            st.dataframe(by_sp_display, hide_index=True, use_container_width=True)
+
+            # Nút tải bảng lương Sale về Excel
+            st.write("")
+            sale_summary_df = pd.DataFrame([{
+                "Nhân viên": ten_nv,
+                "Tháng": f"{thang}/{nam}",
+                "Doanh thu trước VAT (VNĐ)": doanh_thu,
+                "Doanh thu sau VAT 8% (VNĐ)": doanh_thu_sau_vat,
+                "Tỷ lệ hoa hồng": f"{ty_le_hh*100:.1f}%",
+                "Hoa hồng cá nhân (VNĐ)": luong_co_ban,
+                "Thưởng 1% Tân (VNĐ)": thuong_tan,
+                "Thưởng 1% Đức (VNĐ)": thuong_duc,
+                "Tổng thực nhận (VNĐ)": luong_tong
+            }])
+            
+            sale_excel_bytes = export_df_to_excel({
+                "Tổng hợp lương": sale_summary_df,
+                "Theo Nhà phân phối": df_nhom_export,
+                "Theo sản phẩm": by_sp_export
+            })
+
+            st.download_button(
+                label="📥 Tải báo cáo Lương & Doanh số (Excel)",
+                data=sale_excel_bytes,
+                file_name=f"Luong_{ten_nv}_T{thang}_{nam}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="btn_download_salary_excel",
+                use_container_width=True
+            )
 
 # ---------------------------------------------------------------------------
-# 5. DASHBOARD TỔNG QUAN (TÍNH THEO TIẾN ĐỘ ĐƠN HỢP LỆ VÀ CÔNG NỢ)
+# 5. DASHBOARD TỔNG QUAN (+ NÚT TẢI BÁO CÁO EXCEL THEO THÁNG/NĂM)
 # ---------------------------------------------------------------------------
 elif nav == "📊 Dashboard":
     banner("Tổng quan")
@@ -1770,19 +1912,64 @@ elif nav == "📊 Dashboard":
 
         st.markdown("<div style='font-size:14px;font-weight:700;color:#374151;margin-bottom:8px;'>SẢN LƯỢNG & DOANH THU THEO MẶT HÀNG</div>", unsafe_allow_html=True)
         by_sp = period.merge(san_pham_df[["Ma_SP", "Ten_SP"]], on="Ma_SP", how="left")
-        by_sp = by_sp.groupby("Ten_SP").agg(
+        by_sp_grouped = by_sp.groupby("Ten_SP").agg(
             San_luong=("San_luong_xuat_kho", "sum"),
             Doanh_thu=("Thanh_tien", "sum"),
             ).reset_index().sort_values("Doanh_thu", ascending=False)
-        by_sp["Doanh_thu"] = by_sp["Doanh_thu"].apply(money)
-        by_sp.columns = ["Sản phẩm", "Sản lượng", "Doanh thu"]
-        st.dataframe(by_sp, hide_index=True, use_container_width=True)
+        
+        by_sp_display = by_sp_grouped.copy()
+        by_sp_display["Doanh_thu"] = by_sp_display["Doanh_thu"].apply(money)
+        by_sp_display.columns = ["Sản phẩm", "Sản lượng", "Doanh thu"]
+        st.dataframe(by_sp_display, hide_index=True, use_container_width=True)
+
+        # NÚT TẢI DỮ LIỆU EXCEL CHO DASHBOARD THÁNG ĐANG CHỌN
+        st.write("")
+        if not period.empty:
+            period_orders = period[["Ma_don", "Ngay_len_don", "Ma_KH", "Sale_phu_trach", "Trang_thai_Don", "Trang_thai_TT"]].drop_duplicates()
+            period_orders = period_orders.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
+            period_orders["Ngay_len_don"] = period_orders["Ngay_len_don"].astype(str)
+            period_orders["Tong_tien_don"] = period_orders["Ma_don"].apply(order_total)
+            period_orders.columns = ["Mã đơn", "Ngày lên đơn", "Mã KH", "Sale phụ trách", "Tiến độ giao", "Thanh toán & VAT", "Tên NPP", "Tổng tiền (VNĐ)"]
+
+            by_sp_export_df = by_sp_grouped.copy()
+            by_sp_export_df.columns = ["Tên sản phẩm", "Sản lượng xuất kho", "Doanh thu (VNĐ)"]
+
+            dash_excel_bytes = export_df_to_excel({
+                f"Don_hang_T{thang}_{nam}": period_orders,
+                f"San_pham_T{thang}_{nam}": by_sp_export_df
+            })
+
+            st.download_button(
+                label=f"📥 Tải dữ liệu Báo cáo Tháng {thang}/{nam} (Excel)",
+                data=dash_excel_bytes,
+                file_name=f"VIFEX_Dashboard_T{thang}_{nam}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="btn_download_dashboard_excel",
+                use_container_width=True
+            )
 
 # ---------------------------------------------------------------------------
-# 6. KHÁCH HÀNG
+# 6. KHÁCH HÀNG (+ NÚT TẢI DANH SÁCH KHÁCH HÀNG EXCEL)
 # ---------------------------------------------------------------------------
 elif nav == "👥 Khách hàng":
     banner("Danh sách khách hàng")
     show = khach_hang_df[["Ma_KH", "Ten_NPP", "Sale_phu_trach", "Khu_vuc", "Trang_thai"]].dropna(subset=["Ten_NPP"]).copy()
+    
+    col_k_count, col_k_dl = st.columns([2.5, 1.5])
+    with col_k_count:
+        st.caption(f"Tổng số: **{len(show)}** Nhà phân phối / Khách hàng.")
+    with col_k_dl:
+        if not show.empty:
+            kh_export_df = khach_hang_df.copy()
+            kh_excel_bytes = export_df_to_excel({"Danh sách khách hàng": kh_export_df})
+            st.download_button(
+                label="📥 Tải dữ liệu (Excel)",
+                data=kh_excel_bytes,
+                file_name=f"VIFEX_KhachHang_{date.today().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="btn_download_kh_excel",
+                use_container_width=True
+            )
+            
     show.columns = ["Mã KH", "Tên NPP", "Sale phụ trách", "Khu vực", "Trạng thái"]
     st.dataframe(show, hide_index=True, use_container_width=True)
