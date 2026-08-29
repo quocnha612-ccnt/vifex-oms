@@ -79,7 +79,6 @@ def export_df_to_excel(df_dict):
                 df.to_excel(writer, sheet_name=clean_sheet_name, index=False)
         return output.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
     except Exception:
-        # Fallback an toàn khi môi trường chưa cài openpyxl
         first_df = list(df_dict.values())[0] if df_dict else pd.DataFrame()
         csv_bytes = first_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
         return csv_bytes, "text/csv", "csv"
@@ -976,6 +975,19 @@ if not ctdh_df.empty and not don_hang_df.empty:
         on="Ma_don", how="left"
     )
 
+def order_total_quantity(ma_don):
+    if ctdh_df.empty:
+        return 0
+    items = ctdh_df[ctdh_df["Ma_don"] == ma_don]
+    if items.empty:
+        return 0
+    return int(items["SL_dat"].sum() + items["Tang"].sum())
+
+def order_total(ma_don):
+    if merged.empty:
+        return 0
+    return merged.loc[merged["Ma_don"] == ma_don, "Thanh_tien"].sum()
+
 if "selected_order" not in st.session_state:
     st.session_state.selected_order = None
 if "nav" not in st.session_state:
@@ -1013,12 +1025,6 @@ with st.container(key="vifex_nav"):
 
 nav = st.session_state.nav
 st.write("")
-
-
-def order_total(ma_don):
-    if merged.empty:
-        return 0
-    return merged.loc[merged["Ma_don"] == ma_don, "Thanh_tien"].sum()
 
 
 def render_order_detail_inline(ma_don):
@@ -1107,7 +1113,7 @@ def render_order_detail_inline(ma_don):
         st.markdown(f"<div style='font-size:16px;font-weight:700;color:{GREEN};text-align:right;'>Tổng cộng: {money(total)}</div>", unsafe_allow_html=True)
         
         # CẬP NHẬT 2 TRẠNG THÁI
-        st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-8px 0 4px 0;'>CẬP NHẬT TIẾN ĐỘ ĐƠN HÀNG & THANH TOÁN</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin:8px 0 4px 0;'>CẬP NHẬT TIẾN ĐỘ ĐƠN HÀNG & THANH TOÁN</div>", unsafe_allow_html=True)
         c_st1, c_st2, c_st3 = st.columns([1.5, 1.5, 1])
         
         with c_st1:
@@ -1458,59 +1464,23 @@ elif nav == "📦 Đơn hàng":
     view_df = view_df.sort_values("Ma_don", ascending=False)
 
     # -----------------------------------------------------------------------
-    # NÚT TẢI VỀ FILE EXCEL DANH SÁCH ĐƠN HÀNG THEO BỘ LỌC (AN TOÀN TUYỆT ĐỐI)
+    # NÚT TẢI VỀ FILE EXCEL VỚI ĐÚNG CÁC CỘT YÊU CẦU:
+    # [Ngày lên đơn, Nhà Phân phối, Số lượng, Tổng tiền (sau chiết khấu), Ghi chú]
     # -----------------------------------------------------------------------
     if not view_df.empty:
         export_orders = view_df.copy()
-        export_orders = export_orders.merge(khach_hang_df[["Ma_KH", "Ten_NPP", "Ten_cong_ty_GPKD", "SDT_phu", "Dia_chi_giao_phu"]], on="Ma_KH", how="left")
-        export_orders["Tong_tien"] = export_orders["Ma_don"].apply(order_total)
+        export_orders = export_orders.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
         
         out_don_hang = pd.DataFrame()
         out_don_hang["Mã đơn"] = export_orders["Ma_don"]
         out_don_hang["Ngày lên đơn"] = export_orders["Ngay_len_don"].astype(str)
-        out_don_hang["Nhà phân phối"] = export_orders["Ten_NPP"].fillna("")
-        out_don_hang["Tên công ty"] = export_orders["Ten_cong_ty_GPKD"].fillna("")
-        out_don_hang["SĐT người nhận"] = export_orders["SDT_phu"].fillna("")
-        out_don_hang["Địa chỉ giao"] = export_orders["Dia_chi_giao_phu"].fillna("")
-        out_don_hang["Tổng giá trị (VNĐ)"] = export_orders["Tong_tien"]
-        out_don_hang["Tiến độ giao hàng"] = export_orders["Trang_thai_Don"]
-        out_don_hang["Thanh toán & VAT"] = export_orders["Trang_thai_TT"]
-        out_don_hang["Hình thức TT"] = export_orders["Hinh_thuc_thanh_toan"].fillna("")
+        out_don_hang["Nhà phân phối"] = export_orders["Ten_NPP"].fillna("Chưa có NPP")
+        out_don_hang["Số lượng"] = export_orders["Ma_don"].apply(order_total_quantity)
+        out_don_hang["Tổng tiền sau CK (VNĐ)"] = export_orders["Ma_don"].apply(order_total)
         out_don_hang["Ghi chú"] = export_orders["Ghi_chu_thanh_toan"].fillna("")
-        out_don_hang["Sale phụ trách"] = export_orders["Sale_phu_trach"].fillna("")
-        
-        filtered_order_ids = view_df["Ma_don"].tolist()
-        export_ctdh = ctdh_df[ctdh_df["Ma_don"].isin(filtered_order_ids)].copy()
-        
-        if not export_ctdh.empty:
-            export_ctdh = export_ctdh.merge(san_pham_df[["Ma_SP", "Ten_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
-            export_ctdh = export_ctdh.merge(export_orders[["Ma_don", "Ten_NPP", "Ngay_len_don", "Trang_thai_Don"]], on="Ma_don", how="left")
-            
-            status_col_val = export_ctdh["Trang_thai_Don"]
-            if "Trang_thai_don" in export_ctdh.columns:
-                status_col_val = export_ctdh["Trang_thai_don"].fillna(export_ctdh["Trang_thai_Don"])
-            elif "Trang_thai" in export_ctdh.columns:
-                status_col_val = export_ctdh["Trang_thai"].fillna(export_ctdh["Trang_thai_Don"])
-
-            out_ctdh = pd.DataFrame({
-                "Mã đơn": export_ctdh["Ma_don"],
-                "Ngày lên đơn": export_ctdh["Ngay_len_don"].astype(str),
-                "Nhà phân phối": export_ctdh["Ten_NPP"].fillna(""),
-                "Tên sản phẩm": export_ctdh["Ten_SP"].fillna(""),
-                "Danh mục": export_ctdh["Nhom_danh_muc"].fillna(""),
-                "Số lượng đặt": export_ctdh["SL_dat"],
-                "Tặng": export_ctdh["Tang"],
-                "Đơn giá áp dụng": export_ctdh["Don_gia_ap_dung"],
-                "Chiết khấu (VNĐ)": export_ctdh["Chiet_khau"],
-                "Thành tiền (VNĐ)": export_ctdh["Thanh_tien"],
-                "Trạng thái giao": status_col_val
-            })
-        else:
-            out_ctdh = pd.DataFrame(columns=["Mã đơn", "Tên sản phẩm", "Số lượng đặt", "Thành tiền (VNĐ)"])
 
         export_bytes, mime_type, file_ext = export_df_to_excel({
-            "Danh sách đơn hàng": out_don_hang,
-            "Chi tiết mặt hàng": out_ctdh
+            "Danh sách đơn hàng": out_don_hang
         })
 
         col_count, col_dl = st.columns([2.5, 1.5])
