@@ -66,11 +66,6 @@ def money(v):
         return "0đ"
 
 def export_df_to_excel(df_dict):
-    """
-    Xuất file an toàn tuyệt đối:
-    - Nếu có openpyxl: xuất file .xlsx nhiều sheet.
-    - Nếu chưa cài openpyxl: tự động xuất định dạng CSV UTF-8 (BOM) mở thẳng trên Excel tiếng Việt không lỗi.
-    """
     try:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -1113,7 +1108,7 @@ def render_order_detail_inline(ma_don):
         st.markdown(f"<div style='font-size:16px;font-weight:700;color:{GREEN};text-align:right;'>Tổng cộng: {money(total)}</div>", unsafe_allow_html=True)
         
         # CẬP NHẬT 2 TRẠNG THÁI
-        st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin:8px 0 4px 0;'>CẬP NHẬT TIẾN ĐỘ ĐƠN HÀNG & THANH TOÁN</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-8px 0 4px 0;'>CẬP NHẬT TIẾN ĐỘ ĐƠN HÀNG & THANH TOÁN</div>", unsafe_allow_html=True)
         c_st1, c_st2, c_st3 = st.columns([1.5, 1.5, 1])
         
         with c_st1:
@@ -1465,16 +1460,24 @@ elif nav == "📦 Đơn hàng":
 
     # -----------------------------------------------------------------------
     # NÚT TẢI VỀ FILE EXCEL VỚI ĐÚNG CÁC CỘT YÊU CẦU:
-    # [Ngày lên đơn, Nhà Phân phối, Số lượng, Tổng tiền (sau chiết khấu), Ghi chú]
+    # [Mã đơn, Ngày lên đơn, Nhà phân phối, Nhân viên Sale, Số lượng, Tổng tiền sau CK (VNĐ), Ghi chú]
     # -----------------------------------------------------------------------
     if not view_df.empty:
         export_orders = view_df.copy()
         export_orders = export_orders.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
         
+        # Ghép tên nhân viên Sale từ bảng Nhan_vien nếu có
+        if "Ma_NV" in nhan_vien_df.columns and "Ten_NV" in nhan_vien_df.columns:
+            export_orders = export_orders.merge(nhan_vien_df[["Ma_NV", "Ten_NV"]], left_on="Sale_phu_trach", right_on="Ma_NV", how="left")
+            sale_col_val = export_orders["Ten_NV"].fillna(export_orders["Sale_phu_trach"]).fillna("")
+        else:
+            sale_col_val = export_orders["Sale_phu_trach"].fillna("")
+        
         out_don_hang = pd.DataFrame()
         out_don_hang["Mã đơn"] = export_orders["Ma_don"]
         out_don_hang["Ngày lên đơn"] = export_orders["Ngay_len_don"].astype(str)
         out_don_hang["Nhà phân phối"] = export_orders["Ten_NPP"].fillna("Chưa có NPP")
+        out_don_hang["Nhân viên Sale"] = sale_col_val
         out_don_hang["Số lượng"] = export_orders["Ma_don"].apply(order_total_quantity)
         out_don_hang["Tổng tiền sau CK (VNĐ)"] = export_orders["Ma_don"].apply(order_total)
         out_don_hang["Ghi chú"] = export_orders["Ghi_chu_thanh_toan"].fillna("")
