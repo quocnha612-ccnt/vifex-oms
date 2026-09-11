@@ -552,7 +552,7 @@ def read_all_sheets_batch(names):
         if not values:
             result[n] = pd.DataFrame()
             continue
-        header = values[0]
+        header = [str(c).strip() if c is not None else "" for c in values[0]]
         rows = values[1:]
         rows = [r + [None] * (len(header) - len(r)) for r in rows]
         df = pd.DataFrame(rows, columns=header)
@@ -1587,7 +1587,17 @@ elif nav == "➕ Lên đơn":
         st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
 
         line_items = []
-        ten_sp_list = san_pham_df["Ten_SP"].dropna().tolist()
+        # Lọc danh sách sản phẩm: chỉ lấy các sản phẩm Đang hoạt động, loại bỏ Ngừng hoạt động / Ngừng bán
+        col_tt_sp = next((c for c in san_pham_df.columns if "trang_thai" in str(c).lower() or "trạng thái" in str(c).lower()), None)
+        if col_tt_sp is not None:
+            inactive_mask = san_pham_df[col_tt_sp].astype(str).str.strip().str.lower().str.contains("ngừng|ngung|dừng|dung|ẩn|an|tạm|tam", na=False)
+            active_sp_df = san_pham_df[~inactive_mask]
+            ten_sp_list = [str(x).strip() for x in active_sp_df["Ten_SP"].dropna().tolist() if str(x).strip()]
+        else:
+            ten_sp_list = [str(x).strip() for x in san_pham_df["Ten_SP"].dropna().tolist() if str(x).strip()]
+
+        if not ten_sp_list:
+            ten_sp_list = [str(x).strip() for x in san_pham_df["Ten_SP"].dropna().tolist() if str(x).strip()]
         estimated_total_order = 0.0
         
         for i in range(st.session_state.order_items_count):
