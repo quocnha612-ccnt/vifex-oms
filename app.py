@@ -11,7 +11,29 @@ import streamlit as st
 from google.oauth2.service_account import Credentials
 from PIL import Image, ImageDraw, ImageFont
 
-st.set_page_config(page_title="VIFEX - Quản lý đơn hàng", page_icon="📦", layout="centered")
+def get_page_icon():
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "logo.png"),
+        os.path.join(os.path.dirname(__file__), "2.png"),
+        os.path.join(os.path.dirname(__file__), "logo.png.png"),
+        "logo.png",
+        "2.png",
+        "logo.png.png",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            try:
+                return Image.open(p)
+            except Exception:
+                return p
+    return "📦"
+
+try:
+    fav_icon = get_page_icon()
+except Exception:
+    fav_icon = "📦"
+
+st.set_page_config(page_title="VIFEX - Quản lý đơn hàng", page_icon=fav_icon, layout="centered")
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
