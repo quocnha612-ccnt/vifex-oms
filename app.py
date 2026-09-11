@@ -5,44 +5,48 @@ from datetime import datetime
 # Cấu hình trang
 st.set_page_config(page_title="VIFEX | Lên đơn hàng", layout="wide", page_icon="📦")
 
-# Tùy biến giao diện CSS chuẩn nhận diện VIFEX
+# Tùy biến giao diện CSS chuẩn màu VIFEX
 st.markdown("""
 <style>
     .header-box {
         background-color: #0E4D34;
-        padding: 16px 24px;
+        padding: 18px 25px;
         border-radius: 12px;
-        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
     }
-    .header-sub {
-        color: #B2D8C8;
-        font-size: 13px;
+    .header-title-sub {
+        color: #E0E0E0;
+        font-size: 14px;
         font-weight: 600;
         letter-spacing: 1px;
+        margin-bottom: 2px;
     }
-    .header-main {
+    .header-title-main {
         color: #FFFFFF;
-        font-size: 24px;
+        font-size: 26px;
         font-weight: bold;
-        margin-top: 2px;
     }
     .total-box {
         background-color: #E2ECE6;
-        padding: 15px 20px;
+        padding: 16px 20px;
         border-radius: 10px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         border: 1px solid #C4DAD0;
-        margin-top: 25px;
+        margin-top: 20px;
     }
     .total-label {
         font-size: 15px;
         font-weight: 700;
         color: #1B4D3E;
+        letter-spacing: 0.5px;
     }
     .total-value {
-        font-size: 24px;
+        font-size: 22px;
         font-weight: 800;
         color: #C0392B;
     }
@@ -64,23 +68,27 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 1. LOAD DỮ LIỆU TỪ GOOGLE SHEETS (TỰ CẬP NHẬT SAU 60 GIÂY)
+# 1. LOAD DỮ LIỆU TỪ GOOGLE SHEETS
 # -------------------------------------------------------------
-# Dán link CSV đã xuất bản của các sheet tương ứng vào đây:
-URL_SAN_PHAM = "THAY_LINK_CSV_SHEET_SAN_PHAM_TAI_DAY"
-URL_KHACH_HANG = "THAY_LINK_CSV_SHEET_KHACH_HANG_TAI_DAY"
+# Thay đường link CSV tương ứng từ Google Sheet (VIFEX_Database_Goc_n1)
+URL_SAN_PHAM = "https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=...&single=true&output=csv"
+URL_KHACH_HANG = "https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=...&single=true&output=csv"
+URL_GIA = "https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=...&single=true&output=csv"
 
-@st.cache_data(ttl=60)  # Tự xóa cache và cập nhật sau mỗi 60 giây
+@st.cache_data(ttl=60)  # Tự động làm mới cache sau 60 giây
 def load_data():
     try:
+        # Đọc dữ liệu sản phẩm
         df_sp = pd.read_csv(URL_SAN_PHAM)
-        df_sp.columns = [c.strip() for c in df_sp.columns]
         
-        # LỌC SẢN PHẨM: Loại bỏ khoảng trắng và chỉ lấy các món "Đang hoạt động"
+        # LÀM SẠCH KHOẢNG TRẮNG CÁC CỘT
+        df_sp.columns = [c.strip() for c in df_sp.columns]
         if 'Trang_thai' in df_sp.columns:
             df_sp['Trang_thai'] = df_sp['Trang_thai'].astype(str).str.strip()
+            # QUAN TRỌNG: CHỈ LỌC CÁC SẢN PHẨM ĐANG HOẠT ĐỘNG
             df_sp = df_sp[df_sp['Trang_thai'] == 'Đang hoạt động']
-            
+        
+        # Đọc danh sách khách hàng
         try:
             df_kh = pd.read_csv(URL_KHACH_HANG)
             df_kh.columns = [c.strip() for c in df_kh.columns]
@@ -89,82 +97,87 @@ def load_data():
             
         return df_sp, df_kh
     except Exception as e:
-        st.error(f"Lỗi kết nối dữ liệu: {e}")
+        st.error(f"Lỗi khi tải dữ liệu: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
 df_sanpham, df_khachhang = load_data()
 
 # -------------------------------------------------------------
-# 2. HEADER
+# 2. GIAO DIỆN HEADER VIFEX
 # -------------------------------------------------------------
 st.markdown("""
 <div class="header-box">
-    <div class="header-sub">▌ VIFEX</div>
-    <div class="header-main">Lên đơn hàng</div>
+    <div>
+        <div class="header-title-sub">▌ VIFEX</div>
+        <div class="header-title-main">Lên đơn hàng</div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 3. CHỌN KHÁCH HÀNG & SALE
+# 3. THÔNG TIN CHUNG ĐƠN HÀNG
 # -------------------------------------------------------------
 col_kh, col_sale = st.columns([3, 1])
 
 with col_kh:
-    kh_options = df_khachhang['Ten_KH'].dropna().unique().tolist() if not df_khachhang.empty and 'Ten_KH' in df_khachhang.columns else ['MINH PHÚC - NAM ĐỊNH']
-    khach_hang_chon = st.selectbox("Khách hàng (NPP)", options=kh_options)
+    kh_list = df_khachhang['Ten_KH'].dropna().unique().tolist() if not df_khachhang.empty and 'Ten_KH' in df_khachhang.columns else ['MINH PHÚC - NAM ĐỊNH']
+    khach_hang_chon = st.selectbox("Khách hàng (NPP)", options=kh_list)
 
 with col_sale:
-    sale_options = ["NV001", "NV002", "NV003"]
-    sale_phu_trach = st.selectbox("Sale phụ trách", options=sale_options)
+    sale_list = ["NV001", "NV002", "NV003"]
+    sale_phu_trach = st.selectbox("Sale phụ trách", options=sale_list)
 
-st.divider()
+st.markdown("<hr style='margin: 15px 0; border: none; border-top: 1px solid #e0e0e0;'>", unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 4. DANH SÁCH MẶT HÀNG (ĐÃ LỌC BỎ CÁC HÀNG NGỪNG BÁN)
+# 4. DANH SÁCH MẶT HÀNG TRONG ĐƠN
 # -------------------------------------------------------------
 if "items_count" not in st.session_state:
     st.session_state.items_count = 1
 
+# Danh sách tên sản phẩm (ĐÃ ĐƯỢC LỌC CHỈ CÒN SẢN PHẨM ĐANG HOẠT ĐỘNG)
 if not df_sanpham.empty and 'Ten_SP' in df_sanpham.columns:
     sp_options = df_sanpham['Ten_SP'].dropna().tolist()
 else:
     sp_options = ["Không có sản phẩm nào khả dụng"]
 
-tong_tien = 0
+tong_tien_don_hang = 0
 
 for i in range(st.session_state.items_count):
     st.markdown(f"**Sản phẩm #{i+1}**")
     sp_chon = st.selectbox(
-        label=f"sp_{i}",
+        label="Tên sản phẩm",
         options=sp_options,
-        key=f"sp_select_{i}",
+        key=f"sp_{i}",
         label_visibility="collapsed"
     )
     
     c1, c2, c3 = st.columns(3)
     with c1:
-        sl = st.number_input("SL đặt", min_value=0, value=0, step=1, key=f"sl_{i}")
+        sl_dat = st.number_input("SL đặt", min_value=0, value=0, step=1, key=f"sl_{i}")
     with c2:
         tang = st.number_input("Tặng", min_value=0, value=0, step=1, key=f"tang_{i}")
     with c3:
         ck = st.number_input("CK (đ)", min_value=0, value=0, step=1000, key=f"ck_{i}")
     
-    don_gia = 420000
-    thanh_tien = max(0, (sl * don_gia) - ck)
-    tong_tien += thanh_tien
+    # Giả định đơn giá mẫu (có thể lookup từ bảng Lich_su_gia)
+    don_gia = 420000 
+    thanh_tien = max(0, (sl_dat * don_gia) - ck)
+    tong_tien_don_hang += thanh_tien
     st.write("")
 
+# Nút thêm dòng sản phẩm
 if st.button("➕ Thêm sản phẩm"):
     st.session_state.items_count += 1
     st.rerun()
 
 # -------------------------------------------------------------
-# 5. TỔNG TIỀN VÀ XÁC NHẬN
+# 5. TỔNG GIÁ TRỊ & NÚT XÁC NHẬN
 # -------------------------------------------------------------
 st.markdown(f"""
 <div class="total-box">
     <div class="total-label">TỔNG GIÁ TRỊ ĐƠN HÀNG (DỰ KIẾN):</div>
-    <div class="total-value">{tong_tien:,.0f}đ</div>
+    <div class="total-value">{tong_tien_don_hang:,.0f}đ</div>
 </div>
 """, unsafe_allow_html=True)
 
