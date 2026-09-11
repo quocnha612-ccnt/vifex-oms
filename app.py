@@ -1587,11 +1587,19 @@ elif nav == "➕ Lên đơn":
         st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>DANH SÁCH SẢN PHẨM</div>", unsafe_allow_html=True)
 
         line_items = []
-        # Lọc danh sách sản phẩm: chỉ lấy các sản phẩm Đang hoạt động, loại bỏ Ngừng hoạt động / Ngừng bán
+        # Lọc danh sách sản phẩm: chỉ lấy các sản phẩm Đang hoạt động, loại bỏ Ngừng hoạt động
         col_tt_sp = next((c for c in san_pham_df.columns if "trang_thai" in str(c).lower() or "trạng thái" in str(c).lower()), None)
         if col_tt_sp is not None:
-            inactive_mask = san_pham_df[col_tt_sp].astype(str).str.strip().str.lower().str.contains("ngừng|ngung|dừng|dung|ẩn|an|tạm|tam", na=False)
-            active_sp_df = san_pham_df[~inactive_mask]
+            def check_sp_active(val):
+                st_val = str(val).strip().lower()
+                if not st_val or st_val in ["nan", "none"]:
+                    return True
+                # Loại bỏ nếu trạng thái chứa từ khóa ngừng/dừng/khóa
+                if any(k in st_val for k in ["ngừng", "ngung", "dừng", "dung", "khoá", "khóa"]):
+                    return False
+                return True
+            active_mask = san_pham_df[col_tt_sp].apply(check_sp_active)
+            active_sp_df = san_pham_df[active_mask]
             ten_sp_list = [str(x).strip() for x in active_sp_df["Ten_SP"].dropna().tolist() if str(x).strip()]
         else:
             ten_sp_list = [str(x).strip() for x in san_pham_df["Ten_SP"].dropna().tolist() if str(x).strip()]
