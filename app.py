@@ -85,13 +85,116 @@ def money(v):
 
 def export_df_to_excel(df_dict):
     try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             for sheet_name, df in df_dict.items():
                 clean_sheet_name = str(sheet_name)[:31]
                 df.to_excel(writer, sheet_name=clean_sheet_name, index=False)
+                ws = writer.sheets[clean_sheet_name]
+
+                # Freeze dòng tiêu đề trên cùng
+                ws.freeze_panes = "A2"
+
+                # Màu sắc nhận diện thương hiệu VIFEX
+                header_fill = PatternFill(start_color="15503F", end_color="15503F", fill_type="solid")
+                header_font = Font(name="Segoe UI", size=11, bold=True, color="FFFFFF")
+                header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+                row_even_fill = PatternFill(start_color="F8FAF9", end_color="F8FAF9", fill_type="solid")
+                row_odd_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+
+                border_thin = Side(border_style="thin", color="D1D5DB")
+                cell_border = Border(left=border_thin, right=border_thin, top=border_thin, bottom=border_thin)
+
+                font_regular = Font(name="Segoe UI", size=10)
+                font_bold = Font(name="Segoe UI", size=10, bold=True)
+
+                # 1. Định dạng hàng tiêu đề
+                ws.row_dimensions[1].height = 28
+                for col_idx in range(1, len(df.columns) + 1):
+                    cell = ws.cell(row=1, column=col_idx)
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = header_align
+                    cell.border = cell_border
+
+                # 2. Định dạng dữ liệu từng dòng
+                num_rows = len(df)
+                for r_idx in range(2, num_rows + 2):
+                    ws.row_dimensions[r_idx].height = 21
+                    fill_current = row_even_fill if r_idx % 2 == 0 else row_odd_fill
+                    for c_idx in range(1, len(df.columns) + 1):
+                        cell = ws.cell(row=r_idx, column=c_idx)
+                        cell.border = cell_border
+                        cell.fill = fill_current
+                        cell.font = font_regular
+                        col_name = str(df.columns[c_idx - 1])
+
+                        if col_name in ["Mã đơn", "Ngày lên đơn"]:
+                            cell.alignment = Alignment(horizontal="center", vertical="center")
+                        elif "Số lượng" in col_name:
+                            cell.alignment = Alignment(horizontal="right", vertical="center")
+                            try:
+                                cell.value = float(cell.value)
+                            except (ValueError, TypeError):
+                                pass
+                            cell.number_format = '#,##0'
+                        elif "Tổng tiền" in col_name or "Doanh thu" in col_name:
+                            cell.alignment = Alignment(horizontal="right", vertical="center")
+                            try:
+                                cell.value = float(cell.value)
+                            except (ValueError, TypeError):
+                                pass
+                            cell.number_format = '#,##0 "₫"'
+                        else:
+                            cell.alignment = Alignment(horizontal="left", vertical="center")
+
+                # 3. Dòng Tổng cộng nổi bật ở cuối bảng
+                if num_rows > 0:
+                    tot_row = num_rows + 2
+                    ws.row_dimensions[tot_row].height = 25
+                    tot_fill = PatternFill(start_color="E2EDE8", end_color="E2EDE8", fill_type="solid")
+                    double_bottom = Side(border_style="double", color="15503F")
+                    top_thin = Side(border_style="thin", color="15503F")
+                    tot_border = Border(left=border_thin, right=border_thin, top=top_thin, bottom=double_bottom)
+
+                    for c_idx in range(1, len(df.columns) + 1):
+                        c_cell = ws.cell(row=tot_row, column=c_idx)
+                        c_cell.fill = tot_fill
+                        c_cell.font = font_bold
+                        c_cell.border = tot_border
+                        col_name = str(df.columns[c_idx - 1])
+                        col_letter = get_column_letter(c_idx)
+
+                        if c_idx == 1:
+                            c_cell.value = "TỔNG CỘNG"
+                            c_cell.alignment = Alignment(horizontal="center", vertical="center")
+                        elif "Số lượng" in col_name:
+                            c_cell.value = f"=SUM({col_letter}2:{col_letter}{tot_row-1})"
+                            c_cell.alignment = Alignment(horizontal="right", vertical="center")
+                            c_cell.number_format = '#,##0'
+                        elif "Tổng tiền" in col_name or "Doanh thu" in col_name:
+                            c_cell.value = f"=SUM({col_letter}2:{col_letter}{tot_row-1})"
+                            c_cell.alignment = Alignment(horizontal="right", vertical="center")
+                            c_cell.number_format = '#,##0 "₫"'
+
+                # 4. Tự động co giãn vừa vặn độ rộng cột (Auto-fit width)
+                for c_idx in range(1, len(df.columns) + 1):
+                    col_letter = get_column_letter(c_idx)
+                    max_len = 0
+                    for cell in ws[col_letter]:
+                        val_str = str(cell.value or "")
+                        if str(val_str).startswith("="):
+                            val_str = "123,456,789 ₫"
+                        max_len = max(max_len, len(val_str))
+                    ws.column_dimensions[col_letter].width = min(max(max_len + 5, 14), 55)
+
         return output.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
-    except Exception:
+    except Exception as e:
         first_df = list(df_dict.values())[0] if df_dict else pd.DataFrame()
         csv_bytes = first_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
         return csv_bytes, "text/csv", "csv"
