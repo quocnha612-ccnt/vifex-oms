@@ -662,29 +662,41 @@ def find_row_by_code(ws, code, col_index=1):
     return None
 
 
+def get_kh_dict(ma_kh_val, kh_df):
+    if not ma_kh_val or kh_df.empty:
+        return {}
+    col_ma = next((c for c in kh_df.columns if str(c).strip().lower() in ["ma_kh", "mã kh", "mã_kh"]), None)
+    if not col_ma:
+        return {}
+    matched = kh_df[kh_df[col_ma].astype(str).str.strip() == str(ma_kh_val).strip()]
+    if not matched.empty:
+        return matched.iloc[0].to_dict()
+    return {}
+
+
 def update_order_both_statuses(ma_don, new_order_status, new_payment_status):
     today = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d")
     don_hang_ws = get_ws("Don_hang")
     row = find_row_by_code(don_hang_ws, ma_don, col_index=1)
     if row:
-        don_hang_ws.update_cell(row, 5, new_order_status)
-        don_hang_ws.update_cell(row, 8, today)
-        try:
-            headers = don_hang_ws.row_values(1)
-            if "Trang_thai_TT" in headers:
-                col_k = headers.index("Trang_thai_TT") + 1
-                don_hang_ws.update_cell(row, col_k, new_payment_status)
-            else:
-                don_hang_ws.update_cell(1, 11, "Trang_thai_TT")
-                don_hang_ws.update_cell(row, 11, new_payment_status)
-        except Exception:
-            pass
+        headers = don_hang_ws.row_values(1)
+        col_pay = (headers.index("Trang_thai_TT") + 1) if "Trang_thai_TT" in headers else 11
+        updates = [
+            {"range": gspread.utils.rowcol_to_a1(row, 5), "values": [[new_order_status]]},
+            {"range": gspread.utils.rowcol_to_a1(row, 8), "values": [[today]]},
+            {"range": gspread.utils.rowcol_to_a1(row, col_pay), "values": [[new_payment_status]]}
+        ]
+        don_hang_ws.batch_update(updates, value_input_option="USER_ENTERED")
 
     ctdh_ws = get_ws("Chi_tiet_don_hang")
     ma_don_col = ctdh_ws.col_values(2)
+    ctdh_updates = []
     for i, v in enumerate(ma_don_col, start=1):
         if str(v).strip() == str(ma_don).strip():
-            ctdh_ws.update_cell(i, 10, new_order_status)
+            ctdh_updates.append({"range": gspread.utils.rowcol_to_a1(i, 10), "values": [[new_order_status]]})
+    if ctdh_updates:
+        ctdh_ws.batch_update(ctdh_updates, value_input_option="USER_ENTERED")
+        
     refresh()
 
 
@@ -987,10 +999,8 @@ if khach_hang_df.empty or san_pham_df.empty:
 
 merged = pd.DataFrame()
 if not ctdh_df.empty and not don_hang_df.empty:
-    merged = ctdh_df.merge(
-        don_hang_df[["Ma_don", "Ngay_len_don", "Ma_KH", "Sale_phu_trach", "Trang_thai", "Trang_thai_Don", "Trang_thai_TT"]],
-        on="Ma_don", how="left"
-    )
+    cols_dh = [c for c in ["Ma_don", "Ngay_len_don", "Ma_KH", "Sale_phu_trach", "Trang_thai", "Trang_thai_Don", "Trang_thai_TT"] if c in don_hang_df.columns]
+    merged = ctdh_df.merge(don_hang_df[cols_dh], on="Ma_don", how="left")
 
 def order_total_quantity(ma_don):
     if ctdh_df.empty:
@@ -998,7 +1008,7 @@ def order_total_quantity(ma_don):
     items = ctdh_df[ctdh_df["Ma_don"] == ma_don]
     if items.empty:
         return 0
-    return int(items["SL_dat"].sum() + items["Tang"].sum())
+    return int(items.get("SL_dat", 0).sum() + items.get("Tang", 0).sum())
 
 def order_total(ma_don):
     if merged.empty:
@@ -1050,9 +1060,8 @@ def render_order_detail_inline(ma_don):
         st.error("Không tìm thấy đơn hàng.")
         return
     order_row = order_rows.iloc[0]
-    kh_rows = khach_hang_df[khach_hang_df["Ma_KH"] == order_row["Ma_KH"]]
-    kh_row = kh_rows.iloc[0] if not kh_rows.empty else {}
-    ma_kh = order_row["Ma_KH"]
+    ma_kh = safe_str(order_row.get("Ma_KH"))
+    kh_row = get_kh_dict(ma_kh, khach_hang_df)
 
     items = ctdh_df[ctdh_df["Ma_don"] == ma_don].copy()
     items = items.merge(san_pham_df[["Ma_SP", "Ten_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
@@ -1077,8 +1086,8 @@ def render_order_detail_inline(ma_don):
 
         st.write(f"**Khách hàng:** {ten_cty}")
         st.write(f"**NHÀ PHÂN PHỐI :** {ten_npp}")
-        st.write(f"**Ngày lên đơn:** {order_row['Ngay_len_don']}")
-        st.write(f"**Hình thức thanh toán:** {order_row['Hinh_thuc_thanh_toan']}")
+        st.write(f"**Ngày lên đơn:** {order_row.get('Ngay_len_don')}")
+        st.write(f"**Hình thức thanh toán:** {order_row.get('Hinh_thuc_thanh_toan', '')}")
         if safe_str(order_row.get("Ghi_chu_thanh_toan")):
             st.write(f"**Ghi chú:** {order_row['Ghi_chu_thanh_toan']}")
 
@@ -1097,7 +1106,7 @@ def render_order_detail_inline(ma_don):
             nguoi_nhan_parts.append(dia_chi_giao)
         nguoi_nhan_str = " - ".join(nguoi_nhan_parts) if nguoi_nhan_parts else "Chưa có thông tin nhận"
 
-        tong_sl_giao = int(items["SL_dat"].sum() + items["Tang"].sum())
+        tong_sl_giao = int(items.get("SL_dat", 0).sum() + items.get("Tang", 0).sum())
         ghi_chu_don = safe_str(order_row.get("Ghi_chu_thanh_toan")) or "Không có"
 
         with st.expander("📋 **Xem nhanh thông tin gửi hàng (dạng chữ):**", expanded=True):
@@ -1168,7 +1177,7 @@ def render_order_detail_inline(ma_don):
                 st.button("☁️ Chưa có File VAT", disabled=True, use_container_width=True)
 
         if st.session_state.get(f"show_preview_{ma_don}", False):
-            png_bytes = generate_order_slip(ma_don, order_row, items, kh_row if isinstance(kh_row, dict) else kh_row.to_dict())
+            png_bytes = generate_order_slip(ma_don, order_row, items, kh_row)
             with st.container(border=True):
                 st.image(png_bytes, use_container_width=True)
                 st.download_button("📥 Tải ảnh phiếu xuất (PNG)", data=png_bytes,
@@ -1382,8 +1391,9 @@ if nav == "🏠 Trang chủ":
             st.info("Không có đơn hàng nào thuộc trạng thái này.")
         
         for _, r in display_orders_df.iterrows():
-            kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
-            ten_kh = safe_str(kh.iloc[0]["Ten_NPP"]) if not kh.empty else safe_str(r["Ma_KH"])
+            ma_kh_val = safe_str(r.get("Ma_KH"))
+            kh_info = get_kh_dict(ma_kh_val, khach_hang_df)
+            ten_kh = safe_str(kh_info.get("Ten_NPP")) if kh_info else ma_kh_val
             if not ten_kh:
                 ten_kh = "Chưa có tên NPP"
                 
@@ -1422,7 +1432,6 @@ if nav == "🏠 Trang chủ":
 elif nav == "📦 Đơn hàng":
     banner("Danh sách đơn hàng")
 
-    # Tạo danh sách bộ lọc Thời gian (Tất cả, Năm, Tháng/Năm)
     time_options = ["Tất cả"]
     if not don_hang_df.empty:
         valid_dates = don_hang_df["Ngay_len_don"].dropna()
@@ -1439,7 +1448,7 @@ elif nav == "📦 Đơn hàng":
                 if opt_y not in time_options:
                     time_options.append(opt_y)
 
-    raw_npp_list = sorted([str(x).strip() for x in khach_hang_df["Ten_NPP"].dropna().unique() if str(x).strip()])
+    raw_npp_list = sorted([str(x).strip() for x in khach_hang_df.get("Ten_NPP", pd.Series(dtype=object)).dropna().unique() if str(x).strip()])
     list_npp_filter = ["Tất cả"] + raw_npp_list
 
     col_f1, col_f2, col_f3 = st.columns(3)
@@ -1452,11 +1461,9 @@ elif nav == "📦 Đơn hàng":
     
     view_df = don_hang_df.copy()
     
-    # 1. Lọc theo tiến độ giao hàng
     if filter_order_st != "Tất cả":
         view_df = view_df[view_df["Trang_thai_Don"] == filter_order_st]
         
-    # 2. Lọc theo thời gian (Tháng hoặc Năm)
     if filter_time != "Tất cả" and not view_df.empty:
         view_dates = pd.to_datetime(view_df["Ngay_len_don"], errors="coerce")
         if filter_time.startswith("Tháng "):
@@ -1473,10 +1480,12 @@ elif nav == "📦 Đơn hàng":
             except Exception:
                 pass
                 
-    # 3. Lọc theo Nhà phân phối
     if filter_npp != "Tất cả" and not view_df.empty:
-        matching_kh_ids = khach_hang_df[khach_hang_df["Ten_NPP"] == filter_npp]["Ma_KH"].dropna().tolist()
-        view_df = view_df[view_df["Ma_KH"].isin(matching_kh_ids)]
+        col_npp = next((c for c in khach_hang_df.columns if str(c).strip().lower() in ["ten_npp", "tên npp"]), "Ten_NPP")
+        col_makh = next((c for c in khach_hang_df.columns if str(c).strip().lower() in ["ma_kh", "mã kh", "mã_kh"]), "Ma_KH")
+        if col_npp in khach_hang_df.columns and col_makh in khach_hang_df.columns:
+            matching_kh_ids = khach_hang_df[khach_hang_df[col_npp] == filter_npp][col_makh].dropna().tolist()
+            view_df = view_df[view_df.get("Ma_KH", pd.Series(dtype=object)).isin(matching_kh_ids)]
     
     view_df = view_df.sort_values("Ma_don", ascending=False)
 
@@ -1486,23 +1495,30 @@ elif nav == "📦 Đơn hàng":
     # -----------------------------------------------------------------------
     if not view_df.empty:
         export_orders = view_df.copy()
-        export_orders = export_orders.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
+        
+        # Merge thông tin khách hàng an toàn
+        col_makh_kh = next((c for c in khach_hang_df.columns if str(c).strip().lower() in ["ma_kh", "mã kh", "mã_kh"]), "Ma_KH")
+        if col_makh_kh in khach_hang_df.columns and "Ma_KH" in export_orders.columns:
+            cols_to_pull = [col_makh_kh]
+            if "Ten_NPP" in khach_hang_df.columns:
+                cols_to_pull.append("Ten_NPP")
+            export_orders = export_orders.merge(khach_hang_df[cols_to_pull], left_on="Ma_KH", right_on=col_makh_kh, how="left")
         
         # Ghép tên nhân viên Sale từ bảng Nhan_vien nếu có
-        if "Ma_NV" in nhan_vien_df.columns and "Ten_NV" in nhan_vien_df.columns:
+        if "Ma_NV" in nhan_vien_df.columns and "Ten_NV" in nhan_vien_df.columns and "Sale_phu_trach" in export_orders.columns:
             export_orders = export_orders.merge(nhan_vien_df[["Ma_NV", "Ten_NV"]], left_on="Sale_phu_trach", right_on="Ma_NV", how="left")
             sale_col_val = export_orders["Ten_NV"].fillna(export_orders["Sale_phu_trach"]).fillna("")
         else:
-            sale_col_val = export_orders["Sale_phu_trach"].fillna("")
+            sale_col_val = export_orders.get("Sale_phu_trach", pd.Series(dtype=object)).fillna("")
         
         out_don_hang = pd.DataFrame()
         out_don_hang["Mã đơn"] = export_orders["Ma_don"]
-        out_don_hang["Ngày lên đơn"] = export_orders["Ngay_len_don"].astype(str)
-        out_don_hang["Nhà phân phối"] = export_orders["Ten_NPP"].fillna("Chưa có NPP")
+        out_don_hang["Ngày lên đơn"] = export_orders.get("Ngay_len_don", pd.Series(dtype=object)).astype(str)
+        out_don_hang["Nhà phân phối"] = export_orders.get("Ten_NPP", pd.Series(dtype=object)).fillna("Chưa có NPP")
         out_don_hang["Nhân viên Sale"] = sale_col_val
         out_don_hang["Số lượng"] = export_orders["Ma_don"].apply(order_total_quantity)
         out_don_hang["Tổng tiền sau CK (VNĐ)"] = export_orders["Ma_don"].apply(order_total)
-        out_don_hang["Ghi chú"] = export_orders["Ghi_chu_thanh_toan"].fillna("")
+        out_don_hang["Ghi chú"] = export_orders.get("Ghi_chu_thanh_toan", pd.Series(dtype=object)).fillna("")
 
         export_bytes, mime_type, file_ext = export_df_to_excel({
             "Danh sách đơn hàng": out_don_hang
@@ -1526,8 +1542,9 @@ elif nav == "📦 Đơn hàng":
         st.info("Không có đơn hàng nào phù hợp với bộ lọc.")
     
     for _, r in view_df.iterrows():
-        kh = khach_hang_df[khach_hang_df["Ma_KH"] == r["Ma_KH"]]
-        ten_kh = safe_str(kh.iloc[0]["Ten_NPP"]) if not kh.empty else safe_str(r["Ma_KH"])
+        ma_kh_val = safe_str(r.get("Ma_KH"))
+        kh_info = get_kh_dict(ma_kh_val, khach_hang_df)
+        ten_kh = safe_str(kh_info.get("Ten_NPP")) if kh_info else ma_kh_val
         if not ten_kh:
             ten_kh = "Chưa có tên NPP"
             
@@ -1556,14 +1573,15 @@ elif nav == "📦 Đơn hàng":
             render_order_detail_inline(r["Ma_don"])
 
 # ---------------------------------------------------------------------------
-# 3. LÊN ĐƠN HÀNG (KHOẢNG CÁCH THU GỌN + LIVE TỔNG GIÁ TRỊ ĐƠN HÀNG + HIỂN THỊ CHẤM HÀNG ĐƠN VỊ TIỀN)
+# 3. LÊN ĐƠN HÀNG (LỌC ẨN SẢN PHẨM NGỪNG HOẠT ĐỘNG + LIVE TỔNG GIÁ TRỊ)
 # ---------------------------------------------------------------------------
 elif nav == "➕ Lên đơn":
     banner("Lên đơn hàng")
 
     v = st.session_state.order_form_version
-    ten_npp = st.selectbox("Khách hàng (NPP)", khach_hang_df["Ten_NPP"].dropna().tolist(), key=f"form_npp_{v}")
-    kh_matches = khach_hang_df[khach_hang_df["Ten_NPP"] == ten_npp]
+    ten_npp = st.selectbox("Khách hàng (NPP)", khach_hang_df.get("Ten_NPP", pd.Series(dtype=object)).dropna().tolist(), key=f"form_npp_{v}")
+    col_npp_name = next((c for c in khach_hang_df.columns if str(c).strip().lower() in ["ten_npp", "tên npp"]), "Ten_NPP")
+    kh_matches = khach_hang_df[khach_hang_df[col_npp_name] == ten_npp] if col_npp_name in khach_hang_df.columns else pd.DataFrame()
     kh_row = kh_matches.iloc[0] if not kh_matches.empty else {}
     ma_kh = safe_str(kh_row.get("Ma_KH"))
     sale_pt = safe_str(kh_row.get("Sale_phu_trach"))
@@ -1594,7 +1612,6 @@ elif nav == "➕ Lên đơn":
                 st_val = str(val).strip().lower()
                 if not st_val or st_val in ["nan", "none"]:
                     return True
-                # Loại bỏ nếu trạng thái chứa từ khóa ngừng/dừng/khóa
                 if any(k in st_val for k in ["ngừng", "ngung", "dừng", "dung", "khoá", "khóa"]):
                     return False
                 return True
@@ -1818,9 +1835,12 @@ elif nav == "💰 Lương Sale":
         if of_sale.empty:
             st.caption("Chưa có đơn hợp lệ nào trong tháng này.")
         else:
-            df_nhom = of_sale.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
-            df_nhom = df_nhom.merge(san_pham_df[["Ma_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
-            df_nhom["Nhom_danh_muc"] = df_nhom["Nhom_danh_muc"].fillna("Khác")
+            df_nhom = of_sale.copy()
+            if "Ma_KH" in df_nhom.columns and "Ma_KH" in khach_hang_df.columns:
+                df_nhom = df_nhom.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
+            if "Ma_SP" in df_nhom.columns and "Ma_SP" in san_pham_df.columns:
+                df_nhom = df_nhom.merge(san_pham_df[["Ma_SP", "Nhom_danh_muc"]], on="Ma_SP", how="left")
+            df_nhom["Nhom_danh_muc"] = df_nhom.get("Nhom_danh_muc", pd.Series(dtype=object)).fillna("Khác")
 
             by_npp_raw = df_nhom.groupby(["Ten_NPP", "Nhom_danh_muc"]).agg(
                 San_luong=("San_luong_xuat_kho", "sum"),
@@ -1953,7 +1973,8 @@ elif nav == "📊 Dashboard":
         st.write("")
         if not period.empty:
             period_orders = period[["Ma_don", "Ngay_len_don", "Ma_KH", "Sale_phu_trach", "Trang_thai_Don", "Trang_thai_TT"]].drop_duplicates()
-            period_orders = period_orders.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
+            if "Ma_KH" in period_orders.columns and "Ma_KH" in khach_hang_df.columns:
+                period_orders = period_orders.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
             period_orders["Ngay_len_don"] = period_orders["Ngay_len_don"].astype(str)
             period_orders["Tong_tien_don"] = period_orders["Ma_don"].apply(order_total)
             period_orders.columns = ["Mã đơn", "Ngày lên đơn", "Mã KH", "Sale phụ trách", "Tiến độ giao", "Thanh toán & VAT", "Tên NPP", "Tổng tiền (VNĐ)"]
@@ -1980,7 +2001,9 @@ elif nav == "📊 Dashboard":
 # ---------------------------------------------------------------------------
 elif nav == "👥 Khách hàng":
     banner("Danh sách khách hàng")
-    show = khach_hang_df[["Ma_KH", "Ten_NPP", "Sale_phu_trach", "Khu_vuc", "Trang_thai"]].dropna(subset=["Ten_NPP"]).copy()
+    col_npp_show = next((c for c in khach_hang_df.columns if str(c).strip().lower() in ["ten_npp", "tên npp"]), "Ten_NPP")
+    cols_exist = [c for c in ["Ma_KH", col_npp_show, "Sale_phu_trach", "Khu_vuc", "Trang_thai"] if c in khach_hang_df.columns]
+    show = khach_hang_df[cols_exist].dropna(subset=[col_npp_show]).copy() if col_npp_show in khach_hang_df.columns else khach_hang_df.copy()
     
     col_k_count, col_k_dl = st.columns([2.5, 1.5])
     with col_k_count:
@@ -1998,5 +2021,4 @@ elif nav == "👥 Khách hàng":
                 use_container_width=True
             )
             
-    show.columns = ["Mã KH", "Tên NPP", "Sale phụ trách", "Khu vực", "Trạng thái"]
     st.dataframe(show, hide_index=True, use_container_width=True)
