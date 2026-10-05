@@ -724,12 +724,12 @@ elif nav == "📦 Đơn hàng":
 
     list_npp = ["Tất cả"] + sorted([str(x).strip() for x in khach_hang_df["Ten_NPP"].dropna().unique() if str(x).strip()])
     f1, f2, f3 = st.columns(3)
-    filter_order_st = f1.selectbox("Lọc tiến độ giao hàng", ["Tất cả"] + ORDER_STATUSES, key="f_ost")
+    filter_order_st = f1.multiselect("Lọc tiến độ giao hàng", ORDER_STATUSES, default=[], placeholder="Tất cả trạng thái", key="f_ost")
     filter_time = f2.selectbox("Lọc theo thời gian", time_options, key="f_time")
     filter_npp = f3.selectbox("Lọc theo Nhà phân phối", list_npp, key="f_npp")
 
     view_df = don_hang_df.copy()
-    if filter_order_st != "Tất cả": view_df = view_df[view_df["Trang_thai_Don"] == filter_order_st]
+    if filter_order_st: view_df = view_df[view_df["Trang_thai_Don"].isin(filter_order_st)]
     if filter_time != "Tất cả" and not view_df.empty:
         v_dates = pd.to_datetime(view_df["Ngay_len_don"], errors="coerce")
         if filter_time.startswith("Tháng "):
