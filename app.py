@@ -134,7 +134,7 @@ def export_df_to_excel(df_dict):
                         cell.font = font_regular
                         col_name = str(df.columns[c_idx - 1])
 
-                        if col_name in ["Mã đơn", "Ngày lên đơn"]:
+                        if col_name in ["Mã đơn", "Ngày lên đơn", "Trạng thái thanh toán"]:
                             cell.alignment = Alignment(horizontal="center", vertical="center")
                         elif "Số lượng" in col_name:
                             cell.alignment = Alignment(horizontal="right", vertical="center")
@@ -860,6 +860,7 @@ elif nav == "📦 Đơn hàng":
             "Nhóm danh mục": exp_orders["Ma_don"].apply(order_categories),
             "Số lượng": exp_orders["Ma_don"].apply(order_total_quantity),
             "Tổng tiền sau CK (VNĐ)": exp_orders["Ma_don"].apply(order_total),
+            "Trạng thái thanh toán": exp_orders["Trang_thai_TT"].fillna("Chưa thanh toán"),
             "Ghi chú": exp_orders["Ghi_chu_thanh_toan"].fillna("")
         })
         b_data, m_type, ext = export_df_to_excel({"Danh sách đơn hàng": out_df})
