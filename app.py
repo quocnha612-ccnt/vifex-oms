@@ -285,7 +285,7 @@ def find_row_by_code(ws, code, col_index=1):
 def get_kh_dict(ma_kh_val, kh_df):
     if not ma_kh_val or kh_df.empty: return {}
     col_ma = "Ma_KH" if "Ma_KH" in kh_df.columns else kh_df.columns[0]
-    matched = kh_df[kh_df[col_ma].astype(str).str.strip().str.lower() == str(ma_kh_val).strip().str.lower()]
+    matched = kh_df[kh_df[col_ma].astype(str).str.strip().str.lower() == str(ma_kh_val).strip().lower()]
     return matched.iloc[0].to_dict() if not matched.empty else {}
 
 def update_order_both_statuses(ma_don, new_order_status, new_payment_status):
