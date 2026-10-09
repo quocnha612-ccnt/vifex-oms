@@ -991,18 +991,17 @@ elif nav == "📊 Dashboard":
     if merged.empty:
         st.info("Chưa có dữ liệu đơn hàng để phân tích.")
     else:
-        # 1. XÁC ĐỊNH ĐƠN HÀNG HỢP LỆ THEO TIÊU CHUẨN THỰC THU / CHỜ THU
-        # Các đơn hợp lệ: Đang giao hàng ("Đang giao"), Đã giao ("Đã giao") HOẶC Đã thanh toán (bắt đầu bằng "TT -")
+        # 1. XÁC ĐỊNH ĐƠN HÀNG HỢP LỆ THEO TIÊU CHUẨN THỰC THU & CÔNG NỢ
+        # Ghi nhận doanh thu / công nợ cho các đơn:
+        # - Đã gửi kho ("Gửi kho"), Đang giao ("Đang giao"), Đã giao ("Đã giao")
+        # - HOẶC đơn đã thanh toán (bắt đầu bằng "TT -")
         def is_revenue_eligible(r):
             o_st = safe_str(r.get("Trang_thai_Don"))
             p_st = safe_str(r.get("Trang_thai_TT"))
-            # Đã thanh toán (TT - ...)
-            is_paid = p_st.startswith("TT -") or "đã vat" in p_st.lower() and "chưa" not in p_st.lower()
-            # Đang giao hoặc Đã giao
-            is_shipping_or_delivered = o_st in ["Đang giao", "Đã giao"]
-            return is_shipping_or_delivered or is_paid
+            is_in_operation = o_st in ["Gửi kho", "Đang giao", "Đã giao"]
+            is_paid = p_st.startswith("TT -") or ("đã vat" in p_st.lower() and "chưa" not in p_st.lower())
+            return is_in_operation or is_paid
 
-        # Nhận diện đơn đã thanh toán (Thực nhận) vs chưa thanh toán (Chờ nhận)
         def is_order_paid(p_st):
             s = safe_str(p_st)
             return s.startswith("TT -") or ("đã vat" in s.lower() and "chưa" not in s.lower())
@@ -1034,7 +1033,7 @@ elif nav == "📊 Dashboard":
         if "Ten_NPP" in khach_hang_df.columns:
             list_npp += sorted([str(x).strip() for x in khach_hang_df["Ten_NPP"].dropna().unique() if str(x).strip()])
 
-        # Bố trí hàng lọc: Thời gian, Nhóm danh mục, Sale, NPP, Trạng thái thanh toán
+        # Bố trí hàng lọc 5 cột
         f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([1.3, 1.3, 1.1, 1.3, 1.2])
         curr_m_str = f"Tháng {date.today().month:02d}/{date.today().year}"
         default_t_idx = time_dash_options.index(curr_m_str) if curr_m_str in time_dash_options else 0
@@ -1097,13 +1096,20 @@ elif nav == "📊 Dashboard":
                 s = s[:-2]
             return s.replace(",", ".")
 
-        # 3. TÍNH TOÁN BÓC TÁCH DOANH THU THỰC NHẬN VS CHỜ NHẬN
+        # 3. TÍNH TOÁN BÓC TÁCH DÒNG TIỀN VÀ LƯỢNG HÀNG
         dt_tong_hop_le = filtered_df["Thanh_tien"].sum() if not filtered_df.empty else 0.0
         
-        # Bóc tách Đã TT (Thực nhận) vs Chưa TT (Chờ nhận)
         paid_mask = filtered_df["Trang_thai_TT"].apply(is_order_paid) if not filtered_df.empty else pd.Series(dtype=bool)
-        dt_thuc_nhan = filtered_df[paid_mask]["Thanh_tien"].sum() if not filtered_df.empty else 0.0
-        dt_cho_nhan = filtered_df[~paid_mask]["Thanh_tien"].sum() if not filtered_df.empty else 0.0
+        paid_df = filtered_df[paid_mask] if not filtered_df.empty else pd.DataFrame()
+        unpaid_df = filtered_df[~paid_mask] if not filtered_df.empty else pd.DataFrame()
+
+        dt_thuc_nhan = paid_df["Thanh_tien"].sum() if not paid_df.empty else 0.0
+        sl_thuc_nhan = (paid_df["SL_dat"].sum() + paid_df["Tang"].sum()) if not paid_df.empty else 0.0
+        don_thuc_nhan = paid_df["Ma_don"].nunique() if not paid_df.empty else 0
+
+        dt_cho_nhan = unpaid_df["Thanh_tien"].sum() if not unpaid_df.empty else 0.0
+        sl_cho_nhan = (unpaid_df["SL_dat"].sum() + unpaid_df["Tang"].sum()) if not unpaid_df.empty else 0.0
+        don_cho_nhan = unpaid_df["Ma_don"].nunique() if not unpaid_df.empty else 0
         
         dt_thuan_vat8 = dt_tong_hop_le * 0.92
         tong_sl_dat = filtered_df["SL_dat"].sum() if not filtered_df.empty else 0.0
@@ -1119,21 +1125,21 @@ elif nav == "📊 Dashboard":
             <div class="card-wrapper" style="background:#E2EDE8;border:2px solid #15503F;padding:12px 14px;border-radius:12px;">
                 <div style="font-size:12px;font-weight:600;color:#15503F;">TỔNG DOANH THU HỢP LỆ</div>
                 <div style="font-size:19px;font-weight:800;color:#15503F;margin-top:2px;">{money(dt_tong_hop_le)}</div>
-                <div style="font-size:11px;color:#4B5563;margin-top:2px;">VAT 8%: <b>{money(dt_thuan_vat8)}</b></div>
+                <div style="font-size:11px;color:#4B5563;margin-top:2px;">VAT 8%: <b>{money(dt_thuan_vat8)}</b> ({so_don_hop_le} đơn)</div>
             </div>""", unsafe_allow_html=True)
         with k2:
             st.markdown(f"""
             <div class="card-wrapper" style="background:#DCFAF4;border:2px solid #0D9488;padding:12px 14px;border-radius:12px;">
                 <div style="font-size:12px;font-weight:600;color:#0D9488;">THỰC NHẬN (ĐÃ TT)</div>
                 <div style="font-size:19px;font-weight:800;color:#0D9488;margin-top:2px;">{money(dt_thuc_nhan)}</div>
-                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Tiền hàng đã về tài khoản</div>
+                <div style="font-size:11px;color:#0D9488;margin-top:2px;">Lượng hàng: <b>{fmt_qty(sl_thuc_nhan)} thùng</b> ({don_thuc_nhan} đơn)</div>
             </div>""", unsafe_allow_html=True)
         with k3:
             st.markdown(f"""
             <div class="card-wrapper" style="background:#FDE8E8;border:2px solid #D92B2B;padding:12px 14px;border-radius:12px;">
                 <div style="font-size:12px;font-weight:600;color:#D92B2B;">CHỜ NHẬN (CÔNG NỢ)</div>
                 <div style="font-size:19px;font-weight:800;color:#D92B2B;margin-top:2px;">{money(dt_cho_nhan)}</div>
-                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Đơn đang/đã giao chưa thanh toán</div>
+                <div style="font-size:11px;color:#D92B2B;margin-top:2px;">Hàng nợ: <b>{fmt_qty(sl_cho_nhan)} thùng</b> ({don_cho_nhan} đơn)</div>
             </div>""", unsafe_allow_html=True)
         with k4:
             st.markdown(f"""
@@ -1143,8 +1149,35 @@ elif nav == "📊 Dashboard":
                 <div style="font-size:11px;color:#4B5563;margin-top:2px;">Đặt: <b>{fmt_qty(tong_sl_dat)}</b> | Tặng: <b>{fmt_qty(tong_sl_tang)}</b></div>
             </div>""", unsafe_allow_html=True)
 
-        st.caption(f"📌 *Đang tổng hợp **{so_don_hop_le}** đơn hàng hợp lệ (tiến độ Đang giao, Đã giao hoặc Đã TT). Giá trị trung bình: **{money(aov)}**/đơn.*")
+        st.caption(f"📌 *Đang tổng hợp các đơn có tiến độ Gửi kho, Đang giao, Đã giao hoặc Đã TT. Giá trị đơn TB: **{money(aov)}**/đơn.*")
         st.write("")
+
+        # BẢNG THEO DÕI ĐƠN HÀNG CÔNG NỢ & LƯỢNG HÀNG CHỜ THU (DÀNH RIÊNG ĐỂ KHÔNG BỎ SÓT)
+        if not unpaid_df.empty:
+            with st.expander(f"⚠️ **DANH SÁCH ĐƠN HÀNG ĐANG NỢ TIỀN & LƯỢNG HÀNG CHỜ THU ({don_cho_nhan} đơn - {fmt_qty(sl_cho_nhan)} thùng - {money(dt_cho_nhan)})**", expanded=True):
+                unpaid_merged = unpaid_df.copy()
+                unpaid_merged = unpaid_merged.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
+                unpaid_merged["Ten_NPP"] = unpaid_merged["Ten_NPP"].fillna(unpaid_merged["Ma_KH"]).fillna("Chưa rõ NPP")
+                
+                # Group theo từng đơn để xem rõ
+                debt_orders = unpaid_merged.groupby(["Ma_don", "Ngay_len_don", "Ten_NPP", "Trang_thai_Don", "Trang_thai_TT"]).agg(
+                    SL_dat=("SL_dat", "sum"),
+                    Tang=("Tang", "sum"),
+                    Thanh_tien=("Thanh_tien", "sum")
+                ).reset_index()
+                debt_orders["Tong_thung"] = debt_orders["SL_dat"] + debt_orders["Tang"]
+                debt_orders = debt_orders.sort_values("Thanh_tien", ascending=False)
+
+                debt_disp = pd.DataFrame({
+                    "Mã đơn": debt_orders["Ma_don"],
+                    "Ngày lên đơn": debt_orders["Ngay_len_don"].astype(str),
+                    "Nhà phân phối": debt_orders["Ten_NPP"],
+                    "Tiến độ hàng": debt_orders["Trang_thai_Don"],
+                    "Trạng thái TT": debt_orders["Trang_thai_TT"],
+                    "SL thùng": debt_orders["Tong_thung"].apply(fmt_qty),
+                    "Số tiền nợ (VNĐ)": debt_orders["Thanh_tien"].apply(money)
+                })
+                st.dataframe(debt_disp, hide_index=True, use_container_width=True)
 
         # 4. BẢNG CHI TIẾT: ĐỐI CHIẾU SẢN LƯỢNG SẢN PHẨM (NHÀ CUNG CẤP & KHO)
         st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>📦 ĐỐI CHIẾU SẢN LƯỢNG SẢN PHẨM (ĐỐI SOÁT NHÀ CUNG CẤP & KHO)</div>", unsafe_allow_html=True)
