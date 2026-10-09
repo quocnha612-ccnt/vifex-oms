@@ -991,8 +991,23 @@ elif nav == "📊 Dashboard":
     if merged.empty:
         st.info("Chưa có dữ liệu đơn hàng để phân tích.")
     else:
-        # 1. BỘ LỌC TỔNG QUAN ĐA CHIỀU (FILTER TOOLBAR)
-        valid_orders = merged[merged["Trang_thai_Don"].isin(["Gửi kho", "Đang giao", "Đã giao"])].copy()
+        # 1. XÁC ĐỊNH ĐƠN HÀNG HỢP LỆ THEO TIÊU CHUẨN THỰC THU / CHỜ THU
+        # Các đơn hợp lệ: Đang giao hàng ("Đang giao"), Đã giao ("Đã giao") HOẶC Đã thanh toán (bắt đầu bằng "TT -")
+        def is_revenue_eligible(r):
+            o_st = safe_str(r.get("Trang_thai_Don"))
+            p_st = safe_str(r.get("Trang_thai_TT"))
+            # Đã thanh toán (TT - ...)
+            is_paid = p_st.startswith("TT -") or "đã vat" in p_st.lower() and "chưa" not in p_st.lower()
+            # Đang giao hoặc Đã giao
+            is_shipping_or_delivered = o_st in ["Đang giao", "Đã giao"]
+            return is_shipping_or_delivered or is_paid
+
+        # Nhận diện đơn đã thanh toán (Thực nhận) vs chưa thanh toán (Chờ nhận)
+        def is_order_paid(p_st):
+            s = safe_str(p_st)
+            return s.startswith("TT -") or ("đã vat" in s.lower() and "chưa" not in s.lower())
+
+        valid_orders = merged[merged.apply(is_revenue_eligible, axis=1)].copy()
         valid_orders["Ngay_len_don_dt"] = pd.to_datetime(valid_orders["Ngay_len_don"], errors="coerce")
 
         # Tạo danh sách bộ lọc thời gian
@@ -1019,14 +1034,15 @@ elif nav == "📊 Dashboard":
         if "Ten_NPP" in khach_hang_df.columns:
             list_npp += sorted([str(x).strip() for x in khach_hang_df["Ten_NPP"].dropna().unique() if str(x).strip()])
 
-        # Bố trí 4 cột lọc
-        f_c1, f_c2, f_c3, f_c4 = st.columns(4)
+        # Bố trí hàng lọc: Thời gian, Nhóm danh mục, Sale, NPP, Trạng thái thanh toán
+        f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns([1.3, 1.3, 1.1, 1.3, 1.2])
         curr_m_str = f"Tháng {date.today().month:02d}/{date.today().year}"
         default_t_idx = time_dash_options.index(curr_m_str) if curr_m_str in time_dash_options else 0
         sel_time = f_c1.selectbox("Khoảng thời gian", time_dash_options, index=default_t_idx, key="dash_time")
         sel_dm = f_c2.multiselect("Nhóm danh mục", list_dm, default=[], placeholder="Tất cả nhóm hàng", key="dash_dm")
         sel_sale = f_c3.selectbox("Nhân viên Sale", list_sales, key="dash_sale")
         sel_npp = f_c4.selectbox("Nhà phân phối", list_npp, key="dash_npp")
+        sel_pay = f_c5.selectbox("Dòng tiền", ["Tất cả dòng tiền", "Thực nhận (Đã TT)", "Chờ nhận (Công nợ)"], key="dash_pay")
 
         # 2. XỬ LÝ LỌC DỮ LIỆU
         filtered_df = valid_orders.copy()
@@ -1067,6 +1083,12 @@ elif nav == "📊 Dashboard":
                 ma_kh_val = str(kh_match.iloc[0]["Ma_KH"]).strip()
                 filtered_df = filtered_df[filtered_df["Ma_KH"].astype(str).str.strip() == ma_kh_val]
 
+        # Lọc theo dòng tiền
+        if sel_pay == "Thực nhận (Đã TT)" and not filtered_df.empty:
+            filtered_df = filtered_df[filtered_df["Trang_thai_TT"].apply(is_order_paid)]
+        elif sel_pay == "Chờ nhận (Công nợ)" and not filtered_df.empty:
+            filtered_df = filtered_df[~filtered_df["Trang_thai_TT"].apply(is_order_paid)]
+
         st.write("")
 
         def fmt_qty(num):
@@ -1075,45 +1097,53 @@ elif nav == "📊 Dashboard":
                 s = s[:-2]
             return s.replace(",", ".")
 
-        # 3. HÀNG 4 THẺ CHỈ SỐ KPI CỐT LÕI (KPI METRIC CARDS)
-        dt_truoc_vat = filtered_df["Thanh_tien"].sum() if not filtered_df.empty else 0.0
-        dt_thuan_vat8 = dt_truoc_vat * 0.92
+        # 3. TÍNH TOÁN BÓC TÁCH DOANH THU THỰC NHẬN VS CHỜ NHẬN
+        dt_tong_hop_le = filtered_df["Thanh_tien"].sum() if not filtered_df.empty else 0.0
+        
+        # Bóc tách Đã TT (Thực nhận) vs Chưa TT (Chờ nhận)
+        paid_mask = filtered_df["Trang_thai_TT"].apply(is_order_paid) if not filtered_df.empty else pd.Series(dtype=bool)
+        dt_thuc_nhan = filtered_df[paid_mask]["Thanh_tien"].sum() if not filtered_df.empty else 0.0
+        dt_cho_nhan = filtered_df[~paid_mask]["Thanh_tien"].sum() if not filtered_df.empty else 0.0
+        
+        dt_thuan_vat8 = dt_tong_hop_le * 0.92
         tong_sl_dat = filtered_df["SL_dat"].sum() if not filtered_df.empty else 0.0
         tong_sl_tang = filtered_df["Tang"].sum() if not filtered_df.empty else 0.0
         tong_sl_xuat = tong_sl_dat + tong_sl_tang
         so_don_hop_le = filtered_df["Ma_don"].nunique() if not filtered_df.empty else 0
-        aov = (dt_truoc_vat / so_don_hop_le) if so_don_hop_le > 0 else 0.0
+        aov = (dt_tong_hop_le / so_don_hop_le) if so_don_hop_le > 0 else 0.0
 
+        # HÀNG 4 THẺ CHỈ SỐ KPI CHÍNH
         k1, k2, k3, k4 = st.columns(4)
         with k1:
             st.markdown(f"""
             <div class="card-wrapper" style="background:#E2EDE8;border:2px solid #15503F;padding:12px 14px;border-radius:12px;">
-                <div style="font-size:12px;font-weight:600;color:#15503F;">DOANH THU (TRƯỚC VAT)</div>
-                <div style="font-size:19px;font-weight:800;color:#15503F;margin-top:2px;">{money(dt_truoc_vat)}</div>
-                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Tổng giá trị sau chiết khấu</div>
+                <div style="font-size:12px;font-weight:600;color:#15503F;">TỔNG DOANH THU HỢP LỆ</div>
+                <div style="font-size:19px;font-weight:800;color:#15503F;margin-top:2px;">{money(dt_tong_hop_le)}</div>
+                <div style="font-size:11px;color:#4B5563;margin-top:2px;">VAT 8%: <b>{money(dt_thuan_vat8)}</b></div>
             </div>""", unsafe_allow_html=True)
         with k2:
             st.markdown(f"""
-            <div class="card-wrapper" style="background:#FDE8E8;border:2px solid #D92B2B;padding:12px 14px;border-radius:12px;">
-                <div style="font-size:12px;font-weight:600;color:#D92B2B;">DOANH THU THUẦN (VAT 8%)</div>
-                <div style="font-size:19px;font-weight:800;color:#D92B2B;margin-top:2px;">{money(dt_thuan_vat8)}</div>
-                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Cơ sở tính thưởng Sale</div>
+            <div class="card-wrapper" style="background:#DCFAF4;border:2px solid #0D9488;padding:12px 14px;border-radius:12px;">
+                <div style="font-size:12px;font-weight:600;color:#0D9488;">THỰC NHẬN (ĐÃ TT)</div>
+                <div style="font-size:19px;font-weight:800;color:#0D9488;margin-top:2px;">{money(dt_thuc_nhan)}</div>
+                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Tiền hàng đã về tài khoản</div>
             </div>""", unsafe_allow_html=True)
         with k3:
+            st.markdown(f"""
+            <div class="card-wrapper" style="background:#FDE8E8;border:2px solid #D92B2B;padding:12px 14px;border-radius:12px;">
+                <div style="font-size:12px;font-weight:600;color:#D92B2B;">CHỜ NHẬN (CÔNG NỢ)</div>
+                <div style="font-size:19px;font-weight:800;color:#D92B2B;margin-top:2px;">{money(dt_cho_nhan)}</div>
+                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Đơn đang/đã giao chưa thanh toán</div>
+            </div>""", unsafe_allow_html=True)
+        with k4:
             st.markdown(f"""
             <div class="card-wrapper" style="background:#FEF3C7;border:2px solid #D97706;padding:12px 14px;border-radius:12px;">
                 <div style="font-size:12px;font-weight:600;color:#D97706;">TỔNG SẢN LƯỢNG XUẤT</div>
                 <div style="font-size:19px;font-weight:800;color:#D97706;margin-top:2px;">{fmt_qty(tong_sl_xuat)} thùng</div>
                 <div style="font-size:11px;color:#4B5563;margin-top:2px;">Đặt: <b>{fmt_qty(tong_sl_dat)}</b> | Tặng: <b>{fmt_qty(tong_sl_tang)}</b></div>
             </div>""", unsafe_allow_html=True)
-        with k4:
-            st.markdown(f"""
-            <div class="card-wrapper" style="background:#EFF6FF;border:2px solid #2563EB;padding:12px 14px;border-radius:12px;">
-                <div style="font-size:12px;font-weight:600;color:#2563EB;">ĐƠN HÀNG & GIÁ TRỊ TB</div>
-                <div style="font-size:19px;font-weight:800;color:#2563EB;margin-top:2px;">{so_don_hop_le} đơn</div>
-                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Trung bình: <b>{money(aov)}</b>/đơn</div>
-            </div>""", unsafe_allow_html=True)
 
+        st.caption(f"📌 *Đang tổng hợp **{so_don_hop_le}** đơn hàng hợp lệ (tiến độ Đang giao, Đã giao hoặc Đã TT). Giá trị trung bình: **{money(aov)}**/đơn.*")
         st.write("")
 
         # 4. BẢNG CHI TIẾT: ĐỐI CHIẾU SẢN LƯỢNG SẢN PHẨM (NHÀ CUNG CẤP & KHO)
