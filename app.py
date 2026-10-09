@@ -1152,32 +1152,55 @@ elif nav == "📊 Dashboard":
         st.caption(f"📌 *Đang tổng hợp các đơn có tiến độ Gửi kho, Đang giao, Đã giao hoặc Đã TT. Giá trị đơn TB: **{money(aov)}**/đơn.*")
         st.write("")
 
-        # BẢNG THEO DÕI ĐƠN HÀNG CÔNG NỢ & LƯỢNG HÀNG CHỜ THU (DÀNH RIÊNG ĐỂ KHÔNG BỎ SÓT)
-        if not unpaid_df.empty:
-            with st.expander(f"⚠️ **DANH SÁCH ĐƠN CHỜ GIAO & CHỜ THANH TOÁN ({don_cho_nhan} đơn - {fmt_qty(sl_cho_nhan)} thùng - {money(dt_cho_nhan)})**", expanded=True):
-                unpaid_merged = unpaid_df.copy()
-                unpaid_merged = unpaid_merged.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
-                unpaid_merged["Ten_NPP"] = unpaid_merged["Ten_NPP"].fillna(unpaid_merged["Ma_KH"]).fillna("Chưa rõ NPP")
-                
-                # Group theo từng đơn để xem rõ
-                debt_orders = unpaid_merged.groupby(["Ma_don", "Ngay_len_don", "Ten_NPP", "Trang_thai_Don", "Trang_thai_TT"]).agg(
-                    SL_dat=("SL_dat", "sum"),
-                    Tang=("Tang", "sum"),
-                    Thanh_tien=("Thanh_tien", "sum")
-                ).reset_index()
-                debt_orders["Tong_thung"] = debt_orders["SL_dat"] + debt_orders["Tang"]
-                debt_orders = debt_orders.sort_values("Thanh_tien", ascending=False)
+        # BẢNG THEO DÕI ĐƠN HÀNG CHỜ GIAO & CHỜ THANH TOÁN (KHÔNG BỎ SÓT ĐƠN NÀO)
+        # Bao gồm:
+        # 1. Đơn chờ giao: Tiến độ là "Gửi kho" hoặc "Đang giao" (dù đã thanh toán hay chưa)
+        # 2. Đơn chờ thanh toán: Trạng thái TT là chưa thanh toán
+        pending_mask = filtered_df["Trang_thai_Don"].isin(["Gửi kho", "Đang giao"]) | (~filtered_df["Trang_thai_TT"].apply(is_order_paid))
+        pending_df = filtered_df[pending_mask] if not filtered_df.empty else pd.DataFrame()
 
-                debt_disp = pd.DataFrame({
-                    "Mã đơn": debt_orders["Ma_don"],
-                    "Ngày lên đơn": debt_orders["Ngay_len_don"].astype(str),
-                    "Nhà phân phối": debt_orders["Ten_NPP"],
-                    "Tiến độ hàng": debt_orders["Trang_thai_Don"],
-                    "Trạng thái TT": debt_orders["Trang_thai_TT"],
-                    "SL thùng": debt_orders["Tong_thung"].apply(fmt_qty),
-                    "Số tiền nợ (VNĐ)": debt_orders["Thanh_tien"].apply(money)
+        if not pending_df.empty:
+            pending_merged = pending_df.copy()
+            pending_merged = pending_merged.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
+            pending_merged["Ten_NPP"] = pending_merged["Ten_NPP"].fillna(pending_merged["Ma_KH"]).fillna("Chưa rõ NPP")
+            
+            pending_orders = pending_merged.groupby(["Ma_don", "Ngay_len_don", "Ten_NPP", "Trang_thai_Don", "Trang_thai_TT"]).agg(
+                SL_dat=("SL_dat", "sum"),
+                Tang=("Tang", "sum"),
+                Thanh_tien=("Thanh_tien", "sum")
+            ).reset_index()
+            pending_orders["Tong_thung"] = pending_orders["SL_dat"] + pending_orders["Tang"]
+            pending_orders = pending_orders.sort_values("Ma_don", ascending=False)
+
+            def classify_pending(r):
+                is_paid = is_order_paid(r["Trang_thai_TT"])
+                is_undelivered = r["Trang_thai_Don"] in ["Gửi kho", "Đang giao"]
+                if is_undelivered and is_paid:
+                    return "Chờ giao (Đã TT)"
+                elif is_undelivered and not is_paid:
+                    return "Chờ giao & Chờ TT"
+                elif not is_undelivered and not is_paid:
+                    return "Đã giao (Chờ TT)"
+                return "Đang xử lý"
+
+            pending_orders["Phan_loai"] = pending_orders.apply(classify_pending, axis=1)
+
+            don_pending_cnt = pending_orders["Ma_don"].nunique()
+            sl_pending_cnt = pending_orders["Tong_thung"].sum()
+            dt_pending_cnt = pending_orders["Thanh_tien"].sum()
+
+            with st.expander(f"⚠️ **DANH SÁCH ĐƠN CHỜ GIAO & CHỜ THANH TOÁN ({don_pending_cnt} đơn - {fmt_qty(sl_pending_cnt)} thùng - {money(dt_pending_cnt)})**", expanded=True):
+                pending_disp = pd.DataFrame({
+                    "Mã đơn": pending_orders["Ma_don"],
+                    "Ngày lên đơn": pending_orders["Ngay_len_don"].astype(str),
+                    "Nhà phân phối": pending_orders["Ten_NPP"],
+                    "Tiến độ giao hàng": pending_orders["Trang_thai_Don"],
+                    "Trạng thái TT": pending_orders["Trang_thai_TT"],
+                    "Phân loại tồn đọng": pending_orders["Phan_loai"],
+                    "SL thùng": pending_orders["Tong_thung"].apply(fmt_qty),
+                    "Giá trị đơn (VNĐ)": pending_orders["Thanh_tien"].apply(money)
                 })
-                st.dataframe(debt_disp, hide_index=True, use_container_width=True)
+                st.dataframe(pending_disp, hide_index=True, use_container_width=True)
 
         # 4. BẢNG CHI TIẾT: ĐỐI CHIẾU SẢN LƯỢNG SẢN PHẨM (NHÀ CUNG CẤP & KHO)
         st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>📦 TỔNG HỢP LƯỢNG HÀNG XUẤT KHO</div>", unsafe_allow_html=True)
