@@ -987,18 +987,259 @@ elif nav == "💰 Lương Sale":
             st.dataframe(by_npp_disp, hide_index=True, use_container_width=True)
 
 elif nav == "📊 Dashboard":
-    banner("Tổng quan")
-    if merged.empty: st.info("Chưa có dữ liệu đơn hàng.")
+    banner("Tổng quan", highlight_text="Báo cáo & Đối soát kinh doanh")
+    if merged.empty:
+        st.info("Chưa có dữ liệu đơn hàng để phân tích.")
     else:
-        c1, c2 = st.columns(2)
-        thang = c1.selectbox("Tháng", list(range(1, 13)), index=(date.today().month - 1))
-        nam = c2.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1)
-        v_df = merged[merged["Trang_thai_Don"].isin(["Gửi kho", "Đang giao", "Đã giao"])].copy()
-        v_df["Ngay_len_don"] = pd.to_datetime(v_df["Ngay_len_don"], errors="coerce")
-        period = v_df[(v_df["Ngay_len_don"].dt.month == thang) & (v_df["Ngay_len_don"].dt.year == nam)]
-        c1, c2 = st.columns(2)
-        c1.markdown(f'<div class="metric-box"><div class="metric-label">Doanh thu hợp lệ</div><div class="metric-value" style="color:{GREEN};">{money(period["Thanh_tien"].sum())}</div></div>', unsafe_allow_html=True)
-        c2.markdown(f'<div class="metric-box"><div class="metric-label">Đơn hàng hợp lệ</div><div class="metric-value">{period["Ma_don"].nunique()}</div></div>', unsafe_allow_html=True)
+        # 1. BỘ LỌC TỔNG QUAN ĐA CHIỀU (FILTER TOOLBAR)
+        valid_orders = merged[merged["Trang_thai_Don"].isin(["Gửi kho", "Đang giao", "Đã giao"])].copy()
+        valid_orders["Ngay_len_don_dt"] = pd.to_datetime(valid_orders["Ngay_len_don"], errors="coerce")
+
+        # Tạo danh sách bộ lọc thời gian
+        time_dash_options = ["Tất cả thời gian"]
+        valid_dates = valid_orders["Ngay_len_don_dt"].dropna()
+        if not valid_dates.empty:
+            for m in valid_dates.dt.to_period("M").drop_duplicates().sort_values(ascending=False):
+                time_dash_options.append(f"Tháng {m.month:02d}/{m.year}")
+            for y in valid_dates.dt.year.drop_duplicates().sort_values(ascending=False):
+                if f"Năm {y}" not in time_dash_options:
+                    time_dash_options.append(f"Năm {y}")
+
+        # Danh sách Nhóm danh mục
+        col_dm = next((c for c in san_pham_df.columns if "nhom" in str(c).lower() or "danh_muc" in str(c).lower()), "Nhom_danh_muc")
+        list_dm = sorted([str(x).strip() for x in san_pham_df[col_dm].dropna().unique() if str(x).strip()]) if col_dm in san_pham_df.columns else []
+
+        # Danh sách Sale
+        list_sales = ["Tất cả Sale"]
+        if "Ten_NV" in nhan_vien_df.columns:
+            list_sales += sorted([str(x).strip() for x in nhan_vien_df["Ten_NV"].dropna().unique() if str(x).strip()])
+
+        # Danh sách NPP
+        list_npp = ["Tất cả NPP"]
+        if "Ten_NPP" in khach_hang_df.columns:
+            list_npp += sorted([str(x).strip() for x in khach_hang_df["Ten_NPP"].dropna().unique() if str(x).strip()])
+
+        # Bố trí 4 cột lọc
+        f_c1, f_c2, f_c3, f_c4 = st.columns(4)
+        curr_m_str = f"Tháng {date.today().month:02d}/{date.today().year}"
+        default_t_idx = time_dash_options.index(curr_m_str) if curr_m_str in time_dash_options else 0
+        sel_time = f_c1.selectbox("Khoảng thời gian", time_dash_options, index=default_t_idx, key="dash_time")
+        sel_dm = f_c2.multiselect("Nhóm danh mục", list_dm, default=[], placeholder="Tất cả nhóm hàng", key="dash_dm")
+        sel_sale = f_c3.selectbox("Nhân viên Sale", list_sales, key="dash_sale")
+        sel_npp = f_c4.selectbox("Nhà phân phối", list_npp, key="dash_npp")
+
+        # 2. XỬ LÝ LỌC DỮ LIỆU
+        filtered_df = valid_orders.copy()
+
+        # Lọc theo thời gian
+        if sel_time != "Tất cả thời gian":
+            if sel_time.startswith("Tháng "):
+                m_val, y_val = map(int, sel_time.replace("Tháng ", "").strip().split("/"))
+                filtered_df = filtered_df[(filtered_df["Ngay_len_don_dt"].dt.month == m_val) & (filtered_df["Ngay_len_don_dt"].dt.year == y_val)]
+            elif sel_time.startswith("Năm "):
+                y_val = int(sel_time.replace("Năm ", "").strip())
+                filtered_df = filtered_df[filtered_df["Ngay_len_don_dt"].dt.year == y_val]
+
+        # Ghép thông tin sản phẩm và nhóm danh mục
+        if not filtered_df.empty:
+            cols_sp = [c for c in ["Ma_SP", "Ten_SP", col_dm, "Don_vi_tinh"] if c in san_pham_df.columns]
+            filtered_df = filtered_df.merge(san_pham_df[cols_sp], on="Ma_SP", how="left")
+            filtered_df[col_dm] = filtered_df[col_dm].fillna("Khác")
+            if "Don_vi_tinh" not in filtered_df.columns:
+                filtered_df["Don_vi_tinh"] = "Thùng"
+            filtered_df["Don_vi_tinh"] = filtered_df["Don_vi_tinh"].fillna("Thùng")
+
+        # Lọc theo nhóm danh mục
+        if sel_dm and not filtered_df.empty:
+            filtered_df = filtered_df[filtered_df[col_dm].isin(sel_dm)]
+
+        # Lọc theo Sale
+        if sel_sale != "Tất cả Sale" and not filtered_df.empty:
+            sale_match = nhan_vien_df[nhan_vien_df["Ten_NV"] == sel_sale]
+            if not sale_match.empty:
+                ma_nv_val = str(sale_match.iloc[0]["Ma_NV"]).strip()
+                filtered_df = filtered_df[filtered_df["Sale_phu_trach"].astype(str).str.strip() == ma_nv_val]
+
+        # Lọc theo NPP
+        if sel_npp != "Tất cả NPP" and not filtered_df.empty:
+            kh_match = khach_hang_df[khach_hang_df["Ten_NPP"] == sel_npp]
+            if not kh_match.empty:
+                ma_kh_val = str(kh_match.iloc[0]["Ma_KH"]).strip()
+                filtered_df = filtered_df[filtered_df["Ma_KH"].astype(str).str.strip() == ma_kh_val]
+
+        st.write("")
+
+        def fmt_qty(num):
+            s = f"{float(num):,.1f}"
+            if s.endswith(".0"):
+                s = s[:-2]
+            return s.replace(",", ".")
+
+        # 3. HÀNG 4 THẺ CHỈ SỐ KPI CỐT LÕI (KPI METRIC CARDS)
+        dt_truoc_vat = filtered_df["Thanh_tien"].sum() if not filtered_df.empty else 0.0
+        dt_thuan_vat8 = dt_truoc_vat * 0.92
+        tong_sl_dat = filtered_df["SL_dat"].sum() if not filtered_df.empty else 0.0
+        tong_sl_tang = filtered_df["Tang"].sum() if not filtered_df.empty else 0.0
+        tong_sl_xuat = tong_sl_dat + tong_sl_tang
+        so_don_hop_le = filtered_df["Ma_don"].nunique() if not filtered_df.empty else 0
+        aov = (dt_truoc_vat / so_don_hop_le) if so_don_hop_le > 0 else 0.0
+
+        k1, k2, k3, k4 = st.columns(4)
+        with k1:
+            st.markdown(f"""
+            <div class="card-wrapper" style="background:#E2EDE8;border:2px solid #15503F;padding:12px 14px;border-radius:12px;">
+                <div style="font-size:12px;font-weight:600;color:#15503F;">DOANH THU (TRƯỚC VAT)</div>
+                <div style="font-size:19px;font-weight:800;color:#15503F;margin-top:2px;">{money(dt_truoc_vat)}</div>
+                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Tổng giá trị sau chiết khấu</div>
+            </div>""", unsafe_allow_html=True)
+        with k2:
+            st.markdown(f"""
+            <div class="card-wrapper" style="background:#FDE8E8;border:2px solid #D92B2B;padding:12px 14px;border-radius:12px;">
+                <div style="font-size:12px;font-weight:600;color:#D92B2B;">DOANH THU THUẦN (VAT 8%)</div>
+                <div style="font-size:19px;font-weight:800;color:#D92B2B;margin-top:2px;">{money(dt_thuan_vat8)}</div>
+                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Cơ sở tính thưởng Sale</div>
+            </div>""", unsafe_allow_html=True)
+        with k3:
+            st.markdown(f"""
+            <div class="card-wrapper" style="background:#FEF3C7;border:2px solid #D97706;padding:12px 14px;border-radius:12px;">
+                <div style="font-size:12px;font-weight:600;color:#D97706;">TỔNG SẢN LƯỢNG XUẤT</div>
+                <div style="font-size:19px;font-weight:800;color:#D97706;margin-top:2px;">{fmt_qty(tong_sl_xuat)} thùng</div>
+                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Đặt: <b>{fmt_qty(tong_sl_dat)}</b> | Tặng: <b>{fmt_qty(tong_sl_tang)}</b></div>
+            </div>""", unsafe_allow_html=True)
+        with k4:
+            st.markdown(f"""
+            <div class="card-wrapper" style="background:#EFF6FF;border:2px solid #2563EB;padding:12px 14px;border-radius:12px;">
+                <div style="font-size:12px;font-weight:600;color:#2563EB;">ĐƠN HÀNG & GIÁ TRỊ TB</div>
+                <div style="font-size:19px;font-weight:800;color:#2563EB;margin-top:2px;">{so_don_hop_le} đơn</div>
+                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Trung bình: <b>{money(aov)}</b>/đơn</div>
+            </div>""", unsafe_allow_html=True)
+
+        st.write("")
+
+        # 4. BẢNG CHI TIẾT: ĐỐI CHIẾU SẢN LƯỢNG SẢN PHẨM (NHÀ CUNG CẤP & KHO)
+        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>📦 ĐỐI CHIẾU SẢN LƯỢNG SẢN PHẨM (ĐỐI SOÁT NHÀ CUNG CẤP & KHO)</div>", unsafe_allow_html=True)
+        
+        if not filtered_df.empty:
+            ncc_summary = filtered_df.groupby(["Ma_SP", "Ten_SP", col_dm, "Don_vi_tinh"]).agg(
+                SL_dat=("SL_dat", "sum"),
+                SL_tang=("Tang", "sum"),
+                Doanh_thu=("Thanh_tien", "sum")
+            ).reset_index()
+            ncc_summary["Tong_xuat_kho"] = ncc_summary["SL_dat"] + ncc_summary["SL_tang"]
+            ncc_summary = ncc_summary.sort_values("Tong_xuat_kho", ascending=False)
+
+            # DataFrame hiển thị lên UI
+            ncc_disp = pd.DataFrame({
+                "Mã SP": ncc_summary["Ma_SP"],
+                "Tên sản phẩm": ncc_summary["Ten_SP"],
+                "Nhóm danh mục": ncc_summary[col_dm],
+                "ĐVT": ncc_summary["Don_vi_tinh"],
+                "SL đặt": ncc_summary["SL_dat"].apply(fmt_qty),
+                "SL tặng": ncc_summary["SL_tang"].apply(fmt_qty),
+                "Tổng xuất kho": ncc_summary["Tong_xuat_kho"].apply(fmt_qty),
+                "Doanh thu sau CK": ncc_summary["Doanh_thu"].apply(money)
+            })
+            st.dataframe(ncc_disp, hide_index=True, use_container_width=True)
+
+            # Nút tải Excel chuyên nghiệp cho bảng đối chiếu NCC
+            exp_ncc_df = pd.DataFrame({
+                "Mã SP": ncc_summary["Ma_SP"],
+                "Tên sản phẩm": ncc_summary["Ten_SP"],
+                "Nhóm danh mục": ncc_summary[col_dm],
+                "Đơn vị tính": ncc_summary["Don_vi_tinh"],
+                "Số lượng đặt": ncc_summary["SL_dat"],
+                "Số lượng tặng": ncc_summary["SL_tang"],
+                "Tổng sản lượng xuất kho": ncc_summary["Tong_xuat_kho"],
+                "Doanh thu sau CK (VNĐ)": ncc_summary["Doanh_thu"]
+            })
+            b_ncc, m_ncc, ext_ncc = export_df_to_excel({"Doi_chieu_san_luong_NCC": exp_ncc_df})
+            st.download_button("📥 Tải bảng đối chiếu NCC & Kho (Excel)", data=b_ncc, file_name=f"VIFEX_DoiChieu_NCC_{date.today().strftime('%Y%m%d')}.{ext_ncc}", mime=m_ncc, key="btn_dl_ncc_excel", use_container_width=True)
+        else:
+            st.info("Không có dữ liệu sản phẩm trong tiêu chí lọc đã chọn.")
+
+        st.write("")
+
+        # 5. PHÂN TÍCH CHUYÊN SÂU 2 CỘT (CƠ CẤU NHÓM HÀNG & TOP KHÁCH HÀNG NPP)
+        col_an1, col_an2 = st.columns(2)
+        with col_an1:
+            st.markdown("<div style='font-size:13.5px;font-weight:700;color:#15503F;margin-bottom:6px;'>📊 CƠ CẤU & SẢN LƯỢNG THEO NHÓM HÀNG</div>", unsafe_allow_html=True)
+            if not filtered_df.empty:
+                by_cat = filtered_df.groupby(col_dm).agg(
+                    SL_dat=("SL_dat", "sum"),
+                    SL_tang=("Tang", "sum"),
+                    Doanh_thu=("Thanh_tien", "sum")
+                ).reset_index()
+                by_cat["San_luong"] = by_cat["SL_dat"] + by_cat["SL_tang"]
+                by_cat = by_cat.sort_values("Doanh_thu", ascending=False)
+                tot_cat_dt = by_cat["Doanh_thu"].sum()
+                by_cat["Ty_trong"] = by_cat["Doanh_thu"].apply(lambda v: f"{(v / tot_cat_dt * 100):.1f}%" if tot_cat_dt > 0 else "0%")
+                
+                cat_disp = pd.DataFrame({
+                    "Nhóm hàng": by_cat[col_dm],
+                    "Sản lượng (thùng)": by_cat["San_luong"].apply(fmt_qty),
+                    "Doanh thu": by_cat["Doanh_thu"].apply(money),
+                    "Tỷ trọng": by_cat["Ty_trong"]
+                })
+                st.dataframe(cat_disp, hide_index=True, use_container_width=True)
+            else:
+                st.info("Chưa có số liệu nhóm hàng.")
+
+        with col_an2:
+            st.markdown("<div style='font-size:13.5px;font-weight:700;color:#15503F;margin-bottom:6px;'>🏆 TOP 10 NHÀ PHÂN PHỐI NĂNG SUẤT</div>", unsafe_allow_html=True)
+            if not filtered_df.empty:
+                filtered_with_npp = filtered_df.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
+                filtered_with_npp["Ten_NPP"] = filtered_with_npp["Ten_NPP"].fillna(filtered_with_npp["Ma_KH"]).fillna("Chưa rõ NPP")
+                by_npp_dash = filtered_with_npp.groupby("Ten_NPP").agg(
+                    So_don=("Ma_don", "nunique"),
+                    SL_dat=("SL_dat", "sum"),
+                    SL_tang=("Tang", "sum"),
+                    Doanh_thu=("Thanh_tien", "sum")
+                ).reset_index()
+                by_npp_dash["San_luong"] = by_npp_dash["SL_dat"] + by_npp_dash["SL_tang"]
+                by_npp_dash = by_npp_dash.sort_values("Doanh_thu", ascending=False).head(10)
+
+                npp_disp = pd.DataFrame({
+                    "Nhà phân phối": by_npp_dash["Ten_NPP"],
+                    "Số đơn": by_npp_dash["So_don"],
+                    "Sản lượng (thùng)": by_npp_dash["San_luong"].apply(fmt_qty),
+                    "Doanh số": by_npp_dash["Doanh_thu"].apply(money)
+                })
+                st.dataframe(npp_disp, hide_index=True, use_container_width=True)
+            else:
+                st.info("Chưa có số liệu khách hàng.")
+
+        st.write("")
+
+        # 6. HIỆU SUẤT ĐỘI NGŨ SALE
+        st.markdown("<div style='font-size:13.5px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>👥 HIỆU SUẤT KINH DOANH ĐỘI NGŨ SALE</div>", unsafe_allow_html=True)
+        if not filtered_df.empty:
+            sale_merged = filtered_df.copy()
+            if "Ma_NV" in nhan_vien_df.columns and "Ten_NV" in nhan_vien_df.columns:
+                sale_merged = sale_merged.merge(nhan_vien_df[["Ma_NV", "Ten_NV"]], left_on="Sale_phu_trach", right_on="Ma_NV", how="left")
+                sale_merged["Ten_NV"] = sale_merged["Ten_NV"].fillna(sale_merged["Sale_phu_trach"]).fillna("Chưa rõ Sale")
+            else:
+                sale_merged["Ten_NV"] = sale_merged["Sale_phu_trach"].fillna("Chưa rõ Sale")
+
+            by_sale_dash = sale_merged.groupby("Ten_NV").agg(
+                So_don=("Ma_don", "nunique"),
+                SL_dat=("SL_dat", "sum"),
+                SL_tang=("Tang", "sum"),
+                Doanh_thu=("Thanh_tien", "sum")
+            ).reset_index()
+            by_sale_dash["San_luong"] = by_sale_dash["SL_dat"] + by_sale_dash["SL_tang"]
+            by_sale_dash = by_sale_dash.sort_values("Doanh_thu", ascending=False)
+            by_sale_dash["Doanh_thu_vat8"] = by_sale_dash["Doanh_thu"] * 0.92
+
+            sale_disp = pd.DataFrame({
+                "Nhân viên Sale": by_sale_dash["Ten_NV"],
+                "Số đơn": by_sale_dash["So_don"],
+                "Sản lượng (thùng)": by_sale_dash["San_luong"].apply(fmt_qty),
+                "Doanh thu hợp lệ": by_sale_dash["Doanh_thu"].apply(money),
+                "Doanh thu thuần (VAT 8%)": by_sale_dash["Doanh_thu_vat8"].apply(money)
+            })
+            st.dataframe(sale_disp, hide_index=True, use_container_width=True)
+        else:
+            st.info("Chưa có số liệu nhân viên Sale.")
 
 elif nav == "👥 Khách hàng":
     banner("Danh sách khách hàng")
