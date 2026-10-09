@@ -1123,9 +1123,9 @@ elif nav == "📊 Dashboard":
         with k1:
             st.markdown(f"""
             <div class="card-wrapper" style="background:#E2EDE8;border:2px solid #15503F;padding:12px 14px;border-radius:12px;">
-                <div style="font-size:12px;font-weight:600;color:#15503F;">TỔNG DOANH THU HỢP LỆ</div>
+                <div style="font-size:12px;font-weight:600;color:#15503F;">DOANH THU GHI NHẬN</div>
                 <div style="font-size:19px;font-weight:800;color:#15503F;margin-top:2px;">{money(dt_tong_hop_le)}</div>
-                <div style="font-size:11px;color:#4B5563;margin-top:2px;">VAT 8%: <b>{money(dt_thuan_vat8)}</b> ({so_don_hop_le} đơn)</div>
+                <div style="font-size:11px;color:#4B5563;margin-top:2px;">Doanh thu thuần (-8% VAT): <b>{money(dt_thuan_vat8)}</b> ({so_don_hop_le} đơn)</div>
             </div>""", unsafe_allow_html=True)
         with k2:
             st.markdown(f"""
@@ -1144,7 +1144,7 @@ elif nav == "📊 Dashboard":
         with k4:
             st.markdown(f"""
             <div class="card-wrapper" style="background:#FEF3C7;border:2px solid #D97706;padding:12px 14px;border-radius:12px;">
-                <div style="font-size:12px;font-weight:600;color:#D97706;">TỔNG SẢN LƯỢNG XUẤT</div>
+                <div style="font-size:12px;font-weight:600;color:#D97706;">TỔNG HÀNG HÓA</div>
                 <div style="font-size:19px;font-weight:800;color:#D97706;margin-top:2px;">{fmt_qty(tong_sl_xuat)} thùng</div>
                 <div style="font-size:11px;color:#4B5563;margin-top:2px;">Đặt: <b>{fmt_qty(tong_sl_dat)}</b> | Tặng: <b>{fmt_qty(tong_sl_tang)}</b></div>
             </div>""", unsafe_allow_html=True)
@@ -1154,7 +1154,7 @@ elif nav == "📊 Dashboard":
 
         # BẢNG THEO DÕI ĐƠN HÀNG CÔNG NỢ & LƯỢNG HÀNG CHỜ THU (DÀNH RIÊNG ĐỂ KHÔNG BỎ SÓT)
         if not unpaid_df.empty:
-            with st.expander(f"⚠️ **DANH SÁCH ĐƠN HÀNG ĐANG NỢ TIỀN & LƯỢNG HÀNG CHỜ THU ({don_cho_nhan} đơn - {fmt_qty(sl_cho_nhan)} thùng - {money(dt_cho_nhan)})**", expanded=True):
+            with st.expander(f"⚠️ **DANH SÁCH ĐƠN CHỜ GIAO & CHỜ THANH TOÁN ({don_cho_nhan} đơn - {fmt_qty(sl_cho_nhan)} thùng - {money(dt_cho_nhan)})**", expanded=True):
                 unpaid_merged = unpaid_df.copy()
                 unpaid_merged = unpaid_merged.merge(khach_hang_df[["Ma_KH", "Ten_NPP"]], on="Ma_KH", how="left")
                 unpaid_merged["Ten_NPP"] = unpaid_merged["Ten_NPP"].fillna(unpaid_merged["Ma_KH"]).fillna("Chưa rõ NPP")
@@ -1180,7 +1180,7 @@ elif nav == "📊 Dashboard":
                 st.dataframe(debt_disp, hide_index=True, use_container_width=True)
 
         # 4. BẢNG CHI TIẾT: ĐỐI CHIẾU SẢN LƯỢNG SẢN PHẨM (NHÀ CUNG CẤP & KHO)
-        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>📦 ĐỐI CHIẾU SẢN LƯỢNG SẢN PHẨM (ĐỐI SOÁT NHÀ CUNG CẤP & KHO)</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:14px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>📦 TỔNG HỢP LƯỢNG HÀNG XUẤT KHO</div>", unsafe_allow_html=True)
         
         if not filtered_df.empty:
             ncc_summary = filtered_df.groupby(["Ma_SP", "Ten_SP", col_dm, "Don_vi_tinh"]).agg(
@@ -1274,7 +1274,7 @@ elif nav == "📊 Dashboard":
         st.write("")
 
         # 6. HIỆU SUẤT ĐỘI NGŨ SALE
-        st.markdown("<div style='font-size:13.5px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>👥 HIỆU SUẤT KINH DOANH ĐỘI NGŨ SALE</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13.5px;font-weight:700;color:#15503F;margin:10px 0 6px 0;'>👥 HIỆU SUẤT BÁN HÀNG</div>", unsafe_allow_html=True)
         if not filtered_df.empty:
             sale_merged = filtered_df.copy()
             if "Ma_NV" in nhan_vien_df.columns and "Ten_NV" in nhan_vien_df.columns:
@@ -1298,7 +1298,7 @@ elif nav == "📊 Dashboard":
                 "Số đơn": by_sale_dash["So_don"],
                 "Sản lượng (thùng)": by_sale_dash["San_luong"].apply(fmt_qty),
                 "Doanh thu hợp lệ": by_sale_dash["Doanh_thu"].apply(money),
-                "Doanh thu thuần (VAT 8%)": by_sale_dash["Doanh_thu_vat8"].apply(money)
+                "Doanh thu thuần (-8% VAT)": by_sale_dash["Doanh_thu_vat8"].apply(money)
             })
             st.dataframe(sale_disp, hide_index=True, use_container_width=True)
         else:
