@@ -509,7 +509,8 @@ def draw_wrapped_text(d, pos, text, font, fill, max_width, line_spacing=6):
 def generate_order_slip(ma_don, order_row, items_df, kh_dict):
     W, row_h = 860, 34
     f_title, f_h, f_n = get_font(26), get_font(16), get_font(14)
-    H = 540 + row_h * (len(items_df) + 2) + 140
+    # Tăng chiều cao dự phòng để sản phẩm nhiều dòng không bị tràn khung
+    H = 650 + 60 * (len(items_df) + 2) + 300
     img = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, W, 80], fill=GREEN)
@@ -535,7 +536,7 @@ def generate_order_slip(ma_don, order_row, items_df, kh_dict):
     if sdt: d.text((24, y), f"SĐT người nhận: {sdt}", font=f_n, fill="black"); y += 24
     y += 8; d.line([24, y, W - 24, y], fill="#ddd", width=1); y += 10
 
-    cols_x = [24, 270, 370, 440, 520, 640, 750]
+    cols_x = [24, 275, 370, 440, 520, 640, 750]
     for x, h in zip(cols_x, ["Sản phẩm", "Đơn giá", "SL đặt", "Tặng", "Tổng tiền", "Chiết khấu", "Thành tiền"]):
         draw_bold(d, (x, y), h, f_n, GREEN)
     y += row_h; d.line([24, y - 6, W - 24, y - 6], fill="#ddd", width=1)
@@ -544,14 +545,19 @@ def generate_order_slip(ma_don, order_row, items_df, kh_dict):
     for _, r in items_df.iterrows():
         thanh_tien = float(r["Thanh_tien"])
         total += thanh_tien
-        d.text((cols_x[0], y), str(r["Ten_SP"])[:26], font=f_n, fill="black")
+        
+        # Tự động xuống dòng hiển thị trọn vẹn 100% tên sản phẩm, không bao giờ bị cắt
+        sp_name = safe_str(r.get("Ten_SP"))
+        sp_end_y = draw_wrapped_text(d, (cols_x[0], y), sp_name, f_n, "black", max_width=245, line_spacing=4)
+        row_actual_h = max(row_h, (sp_end_y - y) + 6)
+        
         d.text((cols_x[1], y), money(r["Don_gia_ap_dung"]), font=f_n, fill="black")
         d.text((cols_x[2], y), str(int(r["SL_dat"])), font=f_n, fill="black")
         d.text((cols_x[3], y), str(int(r["Tang"])), font=f_n, fill="black")
         d.text((cols_x[4], y), money(float(r["SL_dat"]) * float(r["Don_gia_ap_dung"])), font=f_n, fill="black")
         d.text((cols_x[5], y), money(r["Chiet_khau"]), font=f_n, fill="black")
         d.text((cols_x[6], y), money(thanh_tien), font=f_n, fill="black")
-        y += row_h
+        y += row_actual_h
 
     d.line([24, y, W - 24, y], fill="#ddd", width=1); y += 14
     draw_bold(d, (cols_x[5], y), "TỔNG CỘNG:", f_h, RED)
