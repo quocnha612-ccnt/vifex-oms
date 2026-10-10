@@ -1158,11 +1158,12 @@ elif nav == "📊 Dashboard":
         st.caption(f"📌 *Đang tổng hợp các đơn có tiến độ Gửi kho, Đang giao, Đã giao hoặc Đã TT. Giá trị đơn TB: **{money(aov)}**/đơn.*")
         st.write("")
 
-        # BẢNG THEO DÕI ĐƠN HÀNG CHỜ GIAO & CHỜ THANH TOÁN (KHÔNG BỎ SÓT ĐƠN NÀO)
-        # Bao gồm:
-        # 1. Đơn chờ giao: Tiến độ là "Gửi kho" hoặc "Đang giao" (dù đã thanh toán hay chưa)
-        # 2. Đơn chờ thanh toán: Trạng thái TT là chưa thanh toán
-        pending_mask = filtered_df["Trang_thai_Don"].isin(["Gửi kho", "Đang giao"]) | (~filtered_df["Trang_thai_TT"].apply(is_order_paid))
+        # BẢNG THEO DÕI ĐƠN HÀNG CHỜ GIAO & CHỜ THANH TOÁN (THEO ĐÚNG TIÊU CHÍ VẬN HÀNH)
+        # Điều kiện liệt kê:
+        # 1. Đơn đang ở kho chờ xuất giao: Tiến độ là "Gửi kho" (bất kể đã thanh toán hay chưa)
+        # 2. Đơn chưa thanh toán: Bất kể tiến độ là Gửi kho, Đang giao hay Đã giao
+        # (Lưu ý: Đơn "Đang giao" hoặc "Đã giao" mà ĐÃ THANH TOÁN thì đã xuất kho và thu tiền xong nên KHÔNG liệt kê)
+        pending_mask = (filtered_df["Trang_thai_Don"] == "Gửi kho") | (~filtered_df["Trang_thai_TT"].apply(is_order_paid))
         pending_df = filtered_df[pending_mask] if not filtered_df.empty else pd.DataFrame()
 
         if not pending_df.empty:
@@ -1180,14 +1181,16 @@ elif nav == "📊 Dashboard":
 
             def classify_pending(r):
                 is_paid = is_order_paid(r["Trang_thai_TT"])
-                is_undelivered = r["Trang_thai_Don"] in ["Gửi kho", "Đang giao"]
-                if is_undelivered and is_paid:
-                    return "Chờ giao (Đã TT)"
-                elif is_undelivered and not is_paid:
-                    return "Chờ giao & Chờ TT"
-                elif not is_undelivered and not is_paid:
+                is_in_warehouse = (r["Trang_thai_Don"] == "Gửi kho")
+                if is_in_warehouse and is_paid:
+                    return "Chờ xuất kho (Đã TT)"
+                elif is_in_warehouse and not is_paid:
+                    return "Chờ xuất kho & Chờ TT"
+                elif r["Trang_thai_Don"] == "Đang giao" and not is_paid:
+                    return "Đang giao (Chờ TT)"
+                elif r["Trang_thai_Don"] == "Đã giao" and not is_paid:
                     return "Đã giao (Chờ TT)"
-                return "Đang xử lý"
+                return "Chờ xử lý"
 
             pending_orders["Phan_loai"] = pending_orders.apply(classify_pending, axis=1)
 
