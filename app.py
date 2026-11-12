@@ -247,6 +247,87 @@ div[data-testid="stVerticalBlockBorderWrapper"] { margin-bottom: 8px !important;
 .card-title { font-size: 12px; font-weight: 600; margin-top: 3px; }
 div[class*="st-key-btn_filter_"] { margin-top: -65px; opacity: 0; }
 div[class*="st-key-btn_filter_"] button { height: 65px !important; width: 100% !important; }
+
+/* Tối ưu giao diện dạng lưới gọn gàng trên màn hình điện thoại (Mobile Responsive) */
+@media (max-width: 640px) {
+    .block-container {
+        padding-top: 2.5rem !important;
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+    /* Thanh điều hướng 6 nút: 3 cột x 2 hàng (hoặc 2 cột x 3 hàng) gọn gàng */
+    div[class*="st-key-vifex_nav"] div[data-testid="stHorizontalBlock"] {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+    }
+    div[class*="st-key-vifex_nav"] div[data-testid="stColumn"] {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    div[class*="st-key-vifex_nav"] button {
+        padding: 6px 4px !important;
+        font-size: 12.5px !important;
+        min-height: 38px !important;
+    }
+    div[class*="st-key-vifex_nav"] button p {
+        font-size: 12.5px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* Lưới Tiến độ vận hành (4 thẻ): 2 cột x 2 hàng */
+    div[class*="st-key-home_order_grid"] div[data-testid="stHorizontalBlock"] {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+    }
+    div[class*="st-key-home_order_grid"] div[data-testid="stColumn"] {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* Lưới Tiến độ thanh toán (Hàng 1 - 3 thẻ & Hàng 2 - 4 thẻ): 2 cột x 2 hàng */
+    div[class*="st-key-home_pay_grid_1"] div[data-testid="stHorizontalBlock"],
+    div[class*="st-key-home_pay_grid_2"] div[data-testid="stHorizontalBlock"] {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+    }
+    div[class*="st-key-home_pay_grid_1"] div[data-testid="stColumn"],
+    div[class*="st-key-home_pay_grid_2"] div[data-testid="stColumn"] {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .card-wrapper {
+        padding: 8px 10px !important;
+        min-height: 58px !important;
+    }
+    .card-num {
+        font-size: 19px !important;
+    }
+    .card-title {
+        font-size: 11.5px !important;
+    }
+    div[class*="st-key-btn_filter_"] {
+        margin-top: -58px !important;
+    }
+    div[class*="st-key-btn_filter_"] button {
+        height: 58px !important;
+    }
+    .vifex-banner {
+        padding: 12px 14px !important;
+    }
+    .vifex-banner .main-title {
+        font-size: 18px !important;
+    }
+    .vifex-banner-logo {
+        width: 48px !important;
+        height: 48px !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -739,55 +820,58 @@ if nav == "🏠 Trang chủ":
         counts_pay = don_hang_df["Trang_thai_TT"].value_counts()
 
         st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-bottom:6px;'>📦 TIẾN ĐỘ VẬN HÀNH ĐƠN HÀNG (Nhấn ô để lọc danh sách)</div>", unsafe_allow_html=True)
-        c1, c2, c3, c4 = st.columns(4)
-        for name, cnt, bg, bdr, num, col_o in [
-            ("Lên đơn", int(counts_order.get('Lên đơn', 0)), "#EEF6FF", "#B9D7FE", "#1D4ED8", c1),
-            ("Gửi kho", int(counts_order.get('Gửi kho', 0)), "#F5EEFF", "#E0CFFE", "#7C3AED", c2),
-            ("Đang giao", int(counts_order.get('Đang giao', 0)), "#FFF6DA", "#FDE08B", "#D97706", c3),
-            ("Đã giao", int(counts_order.get('Đã giao', 0)), "#E6F4EA", "#BBE1C7", "#065F46", c4)
-        ]:
-            act = (st.session_state.home_filter_category == "order" and st.session_state.home_filter_value == name)
-            with col_o:
-                st.markdown(f'<div class="card-wrapper" style="background:{bg};border:{3 if act else 1.5}px solid {num if act else bdr};"><div class="card-num" style="color:{num};">{cnt}</div><div class="card-title">{name}{" ✔️" if act else ""}</div></div>', unsafe_allow_html=True)
-                with st.container(key=f"btn_filter_order_{name}"):
-                    if st.button(name, key=f"btn_act_o_{name}", use_container_width=True):
-                        st.session_state.home_filter_category = None if act else "order"
-                        st.session_state.home_filter_value = None if act else name
-                        st.session_state.selected_order = None; st.rerun()
+        with st.container(key="home_order_grid"):
+            c1, c2, c3, c4 = st.columns(4)
+            for name, cnt, bg, bdr, num, col_o in [
+                ("Lên đơn", int(counts_order.get('Lên đơn', 0)), "#EEF6FF", "#B9D7FE", "#1D4ED8", c1),
+                ("Gửi kho", int(counts_order.get('Gửi kho', 0)), "#F5EEFF", "#E0CFFE", "#7C3AED", c2),
+                ("Đang giao", int(counts_order.get('Đang giao', 0)), "#FFF6DA", "#FDE08B", "#D97706", c3),
+                ("Đã giao", int(counts_order.get('Đã giao', 0)), "#E6F4EA", "#BBE1C7", "#065F46", c4)
+            ]:
+                act = (st.session_state.home_filter_category == "order" and st.session_state.home_filter_value == name)
+                with col_o:
+                    st.markdown(f'<div class="card-wrapper" style="background:{bg};border:{3 if act else 1.5}px solid {num if act else bdr};"><div class="card-num" style="color:{num};">{cnt}</div><div class="card-title">{name}{" ✔️" if act else ""}</div></div>', unsafe_allow_html=True)
+                    with st.container(key=f"btn_filter_order_{name}"):
+                        if st.button(name, key=f"btn_act_o_{name}", use_container_width=True):
+                            st.session_state.home_filter_category = None if act else "order"
+                            st.session_state.home_filter_value = None if act else name
+                            st.session_state.selected_order = None; st.rerun()
 
         st.write("")
         st.markdown("<div style='font-size:13px;font-weight:700;color:#15503F;margin-bottom:6px;'>💳 TIẾN ĐỘ THANH TOÁN & HÓA ĐƠN VAT (Nhấn ô để lọc danh sách)</div>", unsafe_allow_html=True)
-        pr1 = st.columns(3)
-        for full, short, cnt, bg, bdr, num, col_o in [
-            ("Chưa thanh toán", "Chưa TT", int(counts_pay.get('Chưa thanh toán', 0)), "#FFEBEF", "#FECDD3", "#E11D48", pr1[0]),
-            ("Chưa TT - Nháp", "Chưa TT - Nháp", int(counts_pay.get('Chưa TT - Nháp', 0)), "#FFF1F2", "#FECDD3", "#BE123C", pr1[1]),
-            ("Chưa TT - Đã VAT", "Chưa TT - Đã VAT", int(counts_pay.get('Chưa TT - Đã VAT', 0)), "#FDF2F8", "#FBCFE8", "#DB2777", pr1[2])
-        ]:
-            act = (st.session_state.home_filter_category == "pay" and st.session_state.home_filter_value == full)
-            with col_o:
-                st.markdown(f'<div class="card-wrapper" style="background:{bg};border:{3 if act else 1.5}px solid {num if act else bdr};"><div class="card-num" style="color:{num};">{cnt}</div><div class="card-title">{short}{" ✔️" if act else ""}</div></div>', unsafe_allow_html=True)
-                with st.container(key=f"btn_filter_pay_{short}"):
-                    if st.button(short, key=f"btn_act_p_{short}", use_container_width=True):
-                        st.session_state.home_filter_category = None if act else "pay"
-                        st.session_state.home_filter_value = None if act else full
-                        st.session_state.selected_order = None; st.rerun()
+        with st.container(key="home_pay_grid_1"):
+            pr1 = st.columns(3)
+            for full, short, cnt, bg, bdr, num, col_o in [
+                ("Chưa thanh toán", "Chưa TT", int(counts_pay.get('Chưa thanh toán', 0)), "#FFEBEF", "#FECDD3", "#E11D48", pr1[0]),
+                ("Chưa TT - Nháp", "Chưa TT - Nháp", int(counts_pay.get('Chưa TT - Nháp', 0)), "#FFF1F2", "#FECDD3", "#BE123C", pr1[1]),
+                ("Chưa TT - Đã VAT", "Chưa TT - Đã VAT", int(counts_pay.get('Chưa TT - Đã VAT', 0)), "#FDF2F8", "#FBCFE8", "#DB2777", pr1[2])
+            ]:
+                act = (st.session_state.home_filter_category == "pay" and st.session_state.home_filter_value == full)
+                with col_o:
+                    st.markdown(f'<div class="card-wrapper" style="background:{bg};border:{3 if act else 1.5}px solid {num if act else bdr};"><div class="card-num" style="color:{num};">{cnt}</div><div class="card-title">{short}{" ✔️" if act else ""}</div></div>', unsafe_allow_html=True)
+                    with st.container(key=f"btn_filter_pay_{short}"):
+                        if st.button(short, key=f"btn_act_p_{short}", use_container_width=True):
+                            st.session_state.home_filter_category = None if act else "pay"
+                            st.session_state.home_filter_value = None if act else full
+                            st.session_state.selected_order = None; st.rerun()
 
         st.write("")
-        pr2 = st.columns(4)
-        for full, short, cnt, bg, bdr, num, col_o in [
-            ("TT - Chưa VAT", "TT - Chưa VAT", int(counts_pay.get('TT - Chưa VAT', 0)), "#FEF3C7", "#FDE68A", "#D97706", pr2[0]),
-            ("TT - Nháp VAT", "TT - Nháp VAT", int(counts_pay.get('TT - Nháp VAT', 0)), "#FFF0E5", "#FED7AA", "#EA580C", pr2[1]),
-            ("TT - không VAT", "TT - không VAT", int(counts_pay.get('TT - không VAT', 0)), "#DCFAF4", "#99F6E4", "#0D9488", pr2[2]),
-            ("TT - Đã VAT", "TT - Đã VAT", int(counts_pay.get('TT - Đã VAT', 0)), "#E5F0EC", "#C4E3D7", "#2D6A4F", pr2[3])
-        ]:
-            act = (st.session_state.home_filter_category == "pay" and st.session_state.home_filter_value == full)
-            with col_o:
-                st.markdown(f'<div class="card-wrapper" style="background:{bg};border:{3 if act else 1.5}px solid {num if act else bdr};"><div class="card-num" style="color:{num};">{cnt}</div><div class="card-title">{short}{" ✔️" if act else ""}</div></div>', unsafe_allow_html=True)
-                with st.container(key=f"btn_filter_pay_{short}"):
-                    if st.button(short, key=f"btn_act_p_{short}", use_container_width=True):
-                        st.session_state.home_filter_category = None if act else "pay"
-                        st.session_state.home_filter_value = None if act else full
-                        st.session_state.selected_order = None; st.rerun()
+        with st.container(key="home_pay_grid_2"):
+            pr2 = st.columns(4)
+            for full, short, cnt, bg, bdr, num, col_o in [
+                ("TT - Chưa VAT", "TT - Chưa VAT", int(counts_pay.get('TT - Chưa VAT', 0)), "#FEF3C7", "#FDE68A", "#D97706", pr2[0]),
+                ("TT - Nháp VAT", "TT - Nháp VAT", int(counts_pay.get('TT - Nháp VAT', 0)), "#FFF0E5", "#FED7AA", "#EA580C", pr2[1]),
+                ("TT - không VAT", "TT - không VAT", int(counts_pay.get('TT - không VAT', 0)), "#DCFAF4", "#99F6E4", "#0D9488", pr2[2]),
+                ("TT - Đã VAT", "TT - Đã VAT", int(counts_pay.get('TT - Đã VAT', 0)), "#E5F0EC", "#C4E3D7", "#2D6A4F", pr2[3])
+            ]:
+                act = (st.session_state.home_filter_category == "pay" and st.session_state.home_filter_value == full)
+                with col_o:
+                    st.markdown(f'<div class="card-wrapper" style="background:{bg};border:{3 if act else 1.5}px solid {num if act else bdr};"><div class="card-num" style="color:{num};">{cnt}</div><div class="card-title">{short}{" ✔️" if act else ""}</div></div>', unsafe_allow_html=True)
+                    with st.container(key=f"btn_filter_pay_{short}"):
+                        if st.button(short, key=f"btn_act_p_{short}", use_container_width=True):
+                            st.session_state.home_filter_category = None if act else "pay"
+                            st.session_state.home_filter_value = None if act else full
+                            st.session_state.selected_order = None; st.rerun()
 
         st.write("")
         disp_df = don_hang_df.copy()
